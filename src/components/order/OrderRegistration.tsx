@@ -1,0 +1,1793 @@
+import { useEffect, useMemo, useState } from "react";
+import { useSelector } from "react-redux";
+import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
+import CustomerSearchInput from "../customer/CustomerSearchInput";
+import { CiSettings } from "react-icons/ci";
+import { IoMdClose } from "react-icons/io";
+import { SalesPartnerSearchInput } from "../commission/SalesPartnerSearchInput";
+import { FaChevronDown, FaChevronUp } from "react-icons/fa6";
+import Breadcrumb from "../Breadcrumb";
+import { selectCurrentUser } from "@/redux/authSlice";
+import { useGetAllItemsQuery } from "@/redux/items/itemsApiSlice";
+import { CustomerType } from "@/types/CustomerType";
+import Tabs from "@/common/TabComponent";
+import SelectOptions from "@/common/SelectOptions";
+import { SalesPartnerType } from "@/types/SalesPartnerType";
+import { useGetAllCustomersQuery } from "@/redux/customer/customerApiSlice";
+import { ItemType } from "@/types/ItemType";
+import { OrderItemType } from "@/types/OrderItemType";
+import { OrderType } from "@/types/OrderType";
+import { useCreateOrderMutation, useGetAllOrdersQuery } from "@/redux/order/orderApiSlice";
+import ErroPage from "../common/ErroPage";
+import Loader from "@/common/Loader";
+import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
+import { useGetAllPricingsQuery } from "@/redux/pricing/pricingApiSlice";
+import { useGetAllServicesQuery } from "@/redux/services/servicesApiSlice";
+import { useGetAllNonStockServicesQuery } from "@/redux/services/nonStockServicesApiSlice";
+import { PricingType } from "@/types/PricingType";
+import { useGetAllDiscountsQuery } from "@/redux/discount/discountApiSlice";
+import { handleApiError } from "@/utils/errorHandling";
+
+const date = new Date();
+const formattedDate = date.toISOString().split('T')[0];
+
+const tabs = [
+  { id: 'general', label: 'General' },
+  { id: 'payment-terms', label: 'Payment terms' },
+  { id: 'commissions', label: 'Commissions' },
+  { id: 'other-information', label: 'Other information' },
+];
+
+
+export const OrderRegistration = () => {
+  const user = useSelector(selectCurrentUser);
+  const { data: items, isLoading: isItemsLoading } = useGetAllItemsQuery();
+  const { data: customers, isLoading: isCustomersLoading } = useGetAllCustomersQuery({});
+  const { data: orders, isLoading, isError, error } = useGetAllOrdersQuery();
+  const { data: pricings, isLoading: isPricingsLoading } = useGetAllPricingsQuery();
+  const { data: services, isLoading: isServicesLoading } = useGetAllServicesQuery();
+  const { data: nonStockServices, isLoading: isNonStockServicesLoading } = useGetAllNonStockServicesQuery();
+  const { data: discounts, isLoading: isDiscountsLoading } = useGetAllDiscountsQuery();
+  const [createOrder, { isLoading: isCreating }] = useCreateOrderMutation();
+
+  const navigate = useNavigate();
+
+  const [orderInfo, setOrderInfo] = useState<OrderType>({
+    id: "",
+    series: "IAN-ORD-YYYY-",
+    customerId: "",
+    status: "Pending",
+    orderSource: "",
+    orderDate: formattedDate,
+    deliveryDate: formattedDate,
+    totalAmount: 0,
+    tax: 0,
+    grandTotal: 0,
+    totalQuantity: 0,
+    internalNote: "",
+    adminApproval: false,
+    orderItems: [],
+  });
+
+  const [formData, setFormData] = useState<OrderItemType[]>([
+    {
+      itemId: "",
+      serviceId: "",
+      width: '',
+      height: '',
+      discount: 0,
+      level: 0,
+      totalAmount: 0,
+      adminApproval: false,
+      uomId: '',
+      quantity: '',
+      unitPrice: 0,
+      description: "",
+      isDiscounted: false,
+      status: "Received",
+      uomsOptions: [],
+      id: "",
+      orderId: "",
+      pricingId: '',
+      constant: false,
+      unit: 0,
+      baseUomId: '',
+    }
+  ]);
+
+  const [paymentTransactions, setPaymentTransactions] = useState([
+    {
+      paymentTermId: '',
+      date: formattedDate,
+      paymentMethod: "cash",
+      reference: "",
+      amount: 0,
+      status: "pending",
+      description: "",
+    }
+  ]);
+
+  const [commissionTransactions, setCommissionTransactions] = useState([
+    {
+      commissionId: '',
+      date: formattedDate,
+      amount: 0,
+      percentage: 0,
+      paymentMethod: "cash",
+      reference: "",
+      description: "",
+      status: "pending",
+    }
+  ]);
+
+  const [customerSearch, setCustomerSearch] = useState({
+    id: "",
+    fullName: "",
+  });
+
+  const [salesPartnerSearch, setSalesPartnerSearch] = useState({
+    id: "",
+    fullName: "",
+  });
+
+  const [fileName, setFileName] = useState<string[]>([]);
+  const [userInputDiscount, setUserInputDiscount] = useState('');
+  const [collapseDisount, setCollapseDiscount] = useState(false);
+  const [totaTransaction, setTotalTransaction] = useState(0);
+  const [remainingAmount, setRemainingAmount] = useState(0);
+  const [totalCommission, setTotalCommission] = useState(0);
+  const [forcePayment, setForcePayment] = useState(true);
+
+  const [activeTabId, setActiveTabId] = useState<string>('general');
+  const handleTabChange = (id: string) => {
+    setActiveTabId(id);
+  };
+
+  const handlePaymentMethod = (index: number, e: React.ChangeEvent<HTMLSelectElement>) => {
+    setPaymentTransactions((prev) => {
+      const updatedData = [...prev];
+      updatedData[index] = {
+        ...updatedData[index],
+        paymentMethod: e.target.value,
+      };
+      return updatedData;
+    });
+  };
+
+  useEffect(() => {
+    const totalTransaction = paymentTransactions?.reduce(
+      (acc, { amount }) => acc + Number(amount || 0),
+      0
+    );
+    setTotalTransaction(totalTransaction);
+    setRemainingAmount(orderInfo.grandTotal - totalTransaction);
+  }, [paymentTransactions, orderInfo.grandTotal]);
+
+
+  const handleFormChange = (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const { name, value } = e.target;
+    setPaymentTransactions((prev) => {
+      const updatedData = [...prev];
+      updatedData[index] = {
+        ...updatedData[index],
+        [name]: value,
+      };
+      return updatedData;
+    });
+  };
+
+  const handleAddPaymentRow = () => {
+    setPaymentTransactions((prev) => [
+      ...prev,
+      {
+        date: formattedDate,
+        paymentMethod: "cash",
+        reference: "",
+        amount: 0,
+        status: "pending",
+        description: "",
+        paymentTermId: "",
+      }
+    ])
+  };
+
+  const handleAddRow = () => {
+    setFormData((prevFormData) => [
+      ...prevFormData,
+      {
+        id: "",
+        itemId: "",
+        serviceId: "",
+        width: '',
+        height: '',
+        discount: 0,
+        level: 0,
+        totalAmount: 0,
+        adminApproval: false,
+        uomId: '',
+        quantity: '',
+        unitPrice: 0,
+        description: "",
+        isDiscounted: false,
+        status: "Received",
+        uomsOptions: [],
+        orderId: "",
+        pricingId: "",
+        constant: false,
+        unit: 0,
+        baseUomId: "",
+      }
+    ]);
+
+    setCommissionTransactions((prev) => [
+      ...prev,
+      {
+        orderId: "",
+        date: formattedDate,
+        amount: 0,
+        percentage: 0,
+        paymentMethod: "cash",
+        reference: "",
+        description: "",
+        status: "pending",
+        commissionId: "",
+      }
+    ]);
+  };
+
+  // customer and order info handling
+  const handleOrderInfo = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setOrderInfo((prevOrderInfo) => ({
+      ...prevOrderInfo,
+      [name]: value,
+    }));
+  };
+
+  const handleOrderNote = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setOrderInfo((prevOrderInfo) => ({
+      ...prevOrderInfo,
+      [name]: value,
+    }));
+  };
+
+
+  const handleChangeForcePayment = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { checked } = e.target;
+    if (checked) {
+      setForcePayment(true);
+    }
+    else {
+      setForcePayment(false);
+    }
+  };
+
+  const handleCustomerSearch = (customer: CustomerType) => {
+    setCustomerSearch((prevOrderInfo) => ({
+      ...prevOrderInfo,
+      id: customer.id,
+      fullName: customer.fullName,
+    }));
+    setOrderInfo((prevOrderInfo) => ({
+      ...prevOrderInfo,
+      customerId: customer.id,
+    }));
+  };
+
+  const handleSalesPersonSearch = (partner: SalesPartnerType) => {
+    setSalesPartnerSearch((prevOrderInfo) => ({
+      ...prevOrderInfo,
+      id: partner.id,
+      fullName: partner.fullName,
+    }));
+    setOrderInfo((prevOrderInfo) => ({
+      ...prevOrderInfo,
+      salesPartnersId: partner.id
+    }));
+  };
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setOrderInfo((prevOrderInfo) => ({
+      ...prevOrderInfo,
+      [name]: value,
+    }));
+  };
+
+  const handleItemChange = (index: number, value: string) => {
+    const selectedItem = items?.find(item => item.id === value);
+    if (selectedItem) {
+      const updatedFormData = [...formData];
+      updatedFormData[index] = {
+        ...updatedFormData[index],
+        itemId: value,
+        serviceId: "", // Reset service selection
+        pricingId: "", // Reset pricing
+        width: '', // Reset width
+        height: '', // Reset height
+        quantity: '', // Reset quantity
+        unitPrice: 0, // Reset unit price
+        totalAmount: 0, // Reset total amount
+        discount: 0, // Reset discount
+        level: 0, // Reset level
+        uomId: selectedItem.defaultUomId, // Set default UOM from item
+        uomsOptions: selectedItem.unitCategory?.uoms || [], // Set UOM options from item
+        constant: selectedItem.unitCategory?.constant || false, // Set constant from item
+        baseUomId: selectedItem.defaultUomId, // Set base UOM
+        unit: 0, // Reset unit
+        description: "", // Reset description
+        isDiscounted: false, // Reset discount flag
+      };
+
+      setFormData(updatedFormData);
+    }
+  };
+
+  const handleServiceChange = (index: number, value: string) => {
+    const item = formData[index];
+
+    // Prevent changes if the item is in an approved state
+    if(item.status !== 'Edited' && item.status !== 'Received' && item.status !== 'Rejected') {
+      toast.error('You cannot edit this item because it has been approved');
+      return;
+    }
+    const selectedService = services?.find(service => service.id === value);
+    const selectedNonStockService = nonStockServices?.find(service => service.id === value);
+
+    if (selectedService || selectedNonStockService) {
+      const updatedFormData = [...formData];
+      updatedFormData[index] = {
+        ...updatedFormData[index],
+        serviceId: value,
+      };
+
+
+        const quantity = parseFloat(updatedFormData[index].quantity.toString());
+        const constant = updatedFormData[index].constant;
+
+        const selectedItem = items?.find((item) => item.id === updatedFormData[index].itemId);
+
+        if (selectedItem) {
+          updatedFormData[index].unitPrice = parseFloat(calculateUnitPrice(updatedFormData[index], selectedItem, index)?.toString() || '0');
+          updatedFormData[index].totalAmount = parseFloat(calculateUnitPrice(updatedFormData[index], selectedItem, index)?.toString() || '0');
+        }
+
+
+        if (!isNaN(quantity) && !constant) {
+          const selectedItem = items?.find((item) => item.id === updatedFormData[index].itemId);
+          if (selectedItem) {
+            updatedFormData[index].unitPrice = parseFloat(calculateUnitPriceForNonAreaItems(updatedFormData[index], selectedItem, index)?.toString() || '0');
+            updatedFormData[index].totalAmount = parseFloat(calculateUnitPriceForNonAreaItems(updatedFormData[index], selectedItem, index)?.toString() || '0');
+          }
+        }
+
+       // Find the matching pricing based on itemId and serviceId
+      const filterSellingPrice = pricings?.find(
+        (pricing) => pricing.itemId === updatedFormData[index].itemId && 
+        (pricing.serviceId === value || pricing.nonStockServiceId === value)
+      );
+
+      if (filterSellingPrice) {
+        updatedFormData[index].pricingId = filterSellingPrice.id;
+      }
+
+      // Update the form data with the new pricingId and unit price
+      setFormData(updatedFormData);
+    }
+    };
+
+  const calculateUnitPrice = (formDataItem: OrderItemType, selectedItem: ItemType, index: number) => {
+    const { width, height, quantity, uomId, itemId, serviceId } = formDataItem;
+    console.log(uomId);
+    console.log(selectedItem);
+    const foundUom = selectedItem?.unitCategory?.uoms?.find((uom) => uom.id === uomId);
+    console.log(foundUom);
+    const unitCategory = items?.find((item) => item.id === itemId.toString())?.unitCategory;
+    const filterSellingPrice = pricings?.find((pricing) => 
+      pricing.itemId === itemId && 
+      (pricing.serviceId === serviceId || pricing.nonStockServiceId === serviceId)
+    );
+
+    if (filterSellingPrice) {
+      if (filterSellingPrice.sellingPrice > 0 && foundUom && unitCategory?.constant && width && height && quantity) {
+        const baseUnit = unitCategory.uoms.find((unit) => unit.baseUnit === true);
+        const servicePrice = filterSellingPrice.sellingPrice;
+        const convertedWidth = parseFloat(width) * parseFloat(foundUom.conversionRate?.toString() || '0');
+        const convertedHeight = parseFloat(height) * parseFloat(foundUom.conversionRate?.toString() || '0');
+        const combination = convertedWidth * convertedHeight * parseFloat(quantity.toString()) * parseFloat(servicePrice.toString() || '0');
+        // const devider = parseFloat(baseUnit?.conversionRate?.toString() || '0') * parseFloat(unitCategory?.constantValue.toString() || '0');
+        const devider = parseFloat(filterSellingPrice.width?.toString() || '0') * parseFloat(filterSellingPrice.height?.toString() || '0');
+
+        setFormData((prevFormData) => {
+          const updatedFormData = [...prevFormData];
+          updatedFormData[index] = {
+            ...updatedFormData[index],
+            pricingId: filterSellingPrice?.id,
+            unit: convertedWidth * convertedHeight * parseFloat(quantity.toString()),
+            baseUomId: baseUnit?.id || '',
+          };
+          return updatedFormData;
+        });
+
+
+        return ((parseFloat(combination.toString()) / parseFloat(devider.toString()))).toFixed(2);
+      }
+    }
+    return 0;
+  };
+
+  const calculateUnitPriceForNonAreaItems = (formDataItem: OrderItemType, selectedItem: ItemType, index: number) => {
+    const { quantity, uomId, itemId, serviceId } = formDataItem;
+    const foundUom = selectedItem?.unitCategory?.uoms?.find((uom) => uom.id === uomId);
+    const unitCategory = items?.find((item) => item.id === itemId.toString())?.unitCategory;
+    const filterSellingPrice = pricings?.find((pricing: PricingType) => 
+      pricing.itemId === itemId && 
+      (pricing.serviceId === serviceId || pricing.nonStockServiceId === serviceId)
+    );
+
+    if (filterSellingPrice) {
+      if (!unitCategory?.constant && filterSellingPrice.sellingPrice > 0) {
+        const convertedQuantity = parseFloat(quantity.toString()) * parseFloat(foundUom?.conversionRate?.toString() || '0');
+        const baseUnit = unitCategory?.uoms.find((unit) => unit.baseUnit === true);
+
+        setFormData((prevFormData) => {
+          const updatedFormData = [...prevFormData];
+          updatedFormData[index] = {
+            ...updatedFormData[index],
+            pricingId: filterSellingPrice?.id,
+            unit: convertedQuantity,
+            baseUomId: baseUnit?.id || '',
+          };
+          return updatedFormData;
+        });
+
+        const combination = convertedQuantity * parseFloat(filterSellingPrice?.sellingPrice?.toString() || '0');
+        return combination.toFixed(2);
+      }
+    }
+    return 0;
+  }
+
+  const handleInputChanges = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+
+    setFormData((prevFormData) => {
+      const updatedFormData = [...prevFormData];
+      updatedFormData[index] = {
+        ...updatedFormData[index],
+        [name]: value,
+      };
+
+      const width = parseFloat(updatedFormData[index].width);
+      const height = parseFloat(updatedFormData[index].height);
+      const quantity = parseFloat(updatedFormData[index].quantity.toString());
+
+      if (!isNaN(width) && !isNaN(height) && !isNaN(quantity)) {
+        const selectedItem = items?.find((item) => item.id === updatedFormData[index].itemId);
+
+        if (selectedItem) {
+          updatedFormData[index].unitPrice = parseFloat(calculateUnitPrice(updatedFormData[index], selectedItem, index)?.toString() || '0');
+          updatedFormData[index].totalAmount = parseFloat(calculateUnitPrice(updatedFormData[index], selectedItem, index)?.toString() || '0');
+        }
+      }
+
+      return updatedFormData;
+    });
+  };
+
+
+  const handleUnitChange = (index: number, value: string) => {
+    setFormData((prevFormData) => {
+      const updatedFormData = [...prevFormData];
+      const selectedItem = items?.find((item) => item.id === updatedFormData[index].itemId);
+      if (selectedItem) {
+        updatedFormData[index] = {
+          ...updatedFormData[index],
+          uomId: value,
+        };
+
+
+        const quantity = parseFloat(updatedFormData[index].quantity.toString());
+        const constant = updatedFormData[index].constant;
+
+        // Pass the selected item to calculateUnitPrice
+        updatedFormData[index].unitPrice = parseFloat(calculateUnitPrice(updatedFormData[index], selectedItem, index)?.toString() || '0');
+        updatedFormData[index].totalAmount = parseFloat(calculateUnitPrice(updatedFormData[index], selectedItem, index)?.toString() || '0');
+
+        if (!isNaN(quantity) && !constant) {
+          const selectedItem = items?.find((item) => item.id === updatedFormData[index].itemId);
+          if (selectedItem) {
+            updatedFormData[index].unitPrice = parseFloat(calculateUnitPriceForNonAreaItems(updatedFormData[index], selectedItem, index)?.toString() || '0');
+            updatedFormData[index].totalAmount = parseFloat(calculateUnitPriceForNonAreaItems(updatedFormData[index], selectedItem, index)?.toString() || '0');
+          }
+        }
+      }
+      return updatedFormData;
+    });
+  };
+
+
+  const handleQuantityChange = (index: number, value: string) => {
+    const quantity = value || '';
+
+    setFormData((prevFormData) => {
+      const updatedFormData = [...prevFormData];
+      updatedFormData[index] = {
+        ...updatedFormData[index],
+        quantity,
+      };
+
+      const width = parseFloat(updatedFormData[index].width);
+      const height = parseFloat(updatedFormData[index].height);
+      const quantityy = parseFloat(updatedFormData[index].quantity.toString());
+      const constant = updatedFormData[index].constant;
+
+      // Ensure width, height, and quantity are valid numbers
+      if (!isNaN(width) && !isNaN(height) && parseFloat(quantity) > 0) {
+        const selectedItem = items?.find((item) => item.id === updatedFormData[index].itemId);
+
+        // Pass formDataItem and selectedItem to calculateUnitPrice
+        if (selectedItem) {
+          updatedFormData[index].unitPrice = parseFloat(calculateUnitPrice(updatedFormData[index], selectedItem, index)?.toString() || '0');
+          updatedFormData[index].totalAmount = parseFloat(calculateUnitPrice(updatedFormData[index], selectedItem, index)?.toString() || '0');
+        }
+      }
+
+      if (!isNaN(quantityy) && !constant) {
+        const selectedItem = items?.find((item) => item.id === updatedFormData[index].itemId);
+        if (selectedItem) {
+          updatedFormData[index].unitPrice = parseFloat(calculateUnitPriceForNonAreaItems(updatedFormData[index], selectedItem, index)?.toString() || '0');
+          updatedFormData[index].totalAmount = parseFloat(calculateUnitPriceForNonAreaItems(updatedFormData[index], selectedItem, index)?.toString() || '0');
+        }
+      }
+
+      return updatedFormData;
+    });
+  };
+
+  const updatedFormData = useMemo(() => {
+    return formData.map(item => ({
+      ...item,
+      totalAmount: (
+        (parseFloat(item.quantity?.toString() || '0') *
+          parseFloat(item.unitPrice?.toString() || '0'))
+      ).toFixed(2),
+    }));
+  }, [formData]);
+
+
+  const handleCancel = (index: number) => {
+    const updatedFormData = [...formData];
+    const filteredData = updatedFormData.filter((_, i) => i !== index);
+    setFormData(filteredData);
+    const updatedCommission = [...commissionTransactions];
+    const filteredCommission = updatedCommission.filter((_, i) => i !== index);
+    setCommissionTransactions(filteredCommission);
+  };
+
+  const handleCancelPayment = (index: number) => {
+    const updatedData = [...paymentTransactions];
+    const filteredData = updatedData.filter((_, i) => i !== index);
+    setPaymentTransactions(filteredData);
+  };
+
+
+  useEffect(() => {
+    const totalAmount = formData.reduce((acc, c) => {
+      const totalPrice = parseFloat(c.totalAmount?.toString() || '0');
+      return acc + totalPrice;
+    }, 0);
+
+    const totalQuantity = formData.reduce((acc, c) => {
+      return acc + (parseFloat(c.quantity?.toString() || '0'));
+    }, 0);
+
+    const tax = totalAmount * 0.15;
+    const grandTotal = totalAmount + tax;
+    let grandTotalWithDiscount = grandTotal;
+
+    if (parseFloat(userInputDiscount) > 0 && parseFloat(userInputDiscount) <= grandTotal) {
+      grandTotalWithDiscount = grandTotal - parseFloat(userInputDiscount);
+    }
+
+    setOrderInfo((prevOrderInfo) => ({
+      ...prevOrderInfo,
+      totalAmount: parseFloat(totalAmount.toFixed(2)),
+      totalQuantity: parseFloat(totalQuantity.toFixed(2)),
+      tax: parseFloat(tax.toFixed(2)),
+      grandTotal: parseFloat(grandTotalWithDiscount.toFixed(2)),
+    }));
+
+    if (commissionTransactions.length > 0) {
+      const totalCommission = commissionTransactions.reduce((acc, c) => {
+        return acc + (parseFloat(c.amount?.toString() || '0'));
+      }, 0);
+      setTotalCommission(parseFloat(totalCommission.toFixed(2)));
+    }
+
+    const combination = formData.map((data, index) => {
+      const customer = customers?.find((customer) => customer.id === orderInfo.customerId);
+      const item = items?.find((item) => item.id === data.itemId);
+      if (!customer || !item) return "";
+      
+      // Add sequence number with leading zero
+      const sequenceNumber = String(index + 1).padStart(2, '0');
+      return `${orderInfo.series}${sequenceNumber}-${customer.fullName}-${item.name}-${data.width}x${data.height}`;
+    });
+
+    setFileName(combination);
+  }, [formData, orderInfo.customerId, items, customers, commissionTransactions, userInputDiscount, orderInfo.series]);
+
+
+  const handleUserInputDiscount = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { value } = e.target;
+    const discount = parseFloat(value) || '';
+    setUserInputDiscount(discount.toString());
+  };
+
+
+
+  const handleDiscountChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const { checked } = e.target;
+    setFormData((prevFormData) => {
+      const updatedData = [...prevFormData];
+      updatedData[index] = {
+        ...updatedData[index],
+        isDiscounted: checked,
+      };
+
+      // Calculate discount if the checkbox is checked
+      if (checked) {
+        const unit = updatedData[index].unit;
+        const selectedItem = items?.find((item) => item.id === updatedFormData[index].itemId);
+        const discountItem = discounts?.filter((discount) => discount.items.id === selectedItem?.id);
+        // Find the appropriate discount data based on the unit's range
+
+        if (discountItem) {
+          const discountData = discountItem.find(discount => {
+            const minQuantity = parseInt(discount.unit.toString());
+            const nextDiscount = discounts?.find(d => d.unit > parseFloat(minQuantity.toString()));
+            const maxQuantity = nextDiscount ? nextDiscount.unit : Infinity;
+            return unit >= minQuantity && unit < maxQuantity;
+          });
+
+          // If discount data is found, apply the discount
+          if (discountData) {
+            updatedData[index].level = parseFloat(discountData.level.toString());
+            const discountPercentage = parseFloat(discountData.percentage.toString()) / 100;
+            updatedData[index].discount = discountPercentage * parseFloat(updatedData[index].unitPrice.toString());
+            updatedData[index].totalAmount = updatedData[index].unitPrice - updatedData[index].discount;
+          } else {
+            // If no discount data is found, reset level and discount
+            updatedData[index].level = 0;
+            updatedData[index].discount = 0;
+            updatedData[index].totalAmount = updatedData[index].unitPrice;
+          }
+        }
+      }
+
+      else {
+        // If checkbox is not checked, reset level, discount, and total
+        updatedData[index].level = 0;
+        updatedData[index].discount = 0;
+        updatedData[index].totalAmount = updatedData[index].unitPrice;
+      }
+
+      return updatedData;
+    });
+  };
+
+  const handleCommissionPaymentMethod = (index: number, e: React.ChangeEvent<HTMLSelectElement>) => {
+    if (user?.roles !== 'ADMIN') {
+      toast.error('You are not authorized to perform this action');
+      return;
+    }
+    const { value, name } = e.target;
+    setCommissionTransactions((prev) => {
+      const updatedData = [...prev];
+      updatedData[index] = {
+        ...updatedData[index],
+        [name]: value,
+      };
+      return updatedData;
+    });
+  };
+
+  const handleCommissionChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    if (user?.roles !== 'ADMIN') {
+      toast.error('You are not authorized to perform this action');
+      return;
+    }
+    const { name, value } = e.target;
+
+    setCommissionTransactions((prev) => {
+      const updatedData = [...prev];
+      updatedData[index] = {
+        ...updatedData[index],
+        [name]: value,
+      };
+      return updatedData;
+    });
+
+    if(name === 'percentage') {
+      const commission = parseFloat(value) / 100 * parseFloat(formData[index]?.unitPrice?.toString() || '0');
+      setCommissionTransactions((prev) => {
+        const updatedData = [...prev];
+        updatedData[index] = {
+          ...updatedData[index],
+          percentage: parseFloat(value),
+          amount: commission,
+        };
+        return updatedData;
+      });
+    }
+  };
+
+  const handleCollapseDiscount = () => {
+    setCollapseDiscount((prev) => !prev);
+  };
+
+
+  const options = useMemo(
+    () => (
+      items
+        ?.filter((item) => item.can_be_sold === true)
+        .map((item) => ({ value: item.id, label: item.name })) || []
+    ),
+    [items]
+  );
+
+  const servicesOptions = useMemo(
+    () => {
+      const stockServices = services?.map((service) => ({
+        value: service.id,
+        label: service.name
+      })) || [];
+      
+      const nonStockServicesList = nonStockServices?.map((service: { id: string; name: string }) => ({
+        value: service.id,
+        label: service.name
+      })) || [];
+      
+      return [...stockServices, ...nonStockServicesList];
+    },
+    [services, nonStockServices]
+  )
+
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!orderInfo.customerId) {
+      const message = "Please select a customer";
+      toast.error(message);
+      return;
+    }
+    if (formData.length === 0) {
+      const message = "Please add order items";
+      toast.error(message);
+      return;
+    }
+    const date = new Date();
+    const currentYear = date.getFullYear();
+
+    // Get the series number
+    const seriesNumber = String(orders?.length).padStart(4, '0'); // Pad with leading zeros if needed
+    orderInfo.series = `IAN-O-${seriesNumber}-${currentYear}`;
+
+    const ordeItemData = formData.map((data) => {
+      // Check if the service is a non-stock service
+      const isNonStockService = nonStockServices?.some(service => service.id === data.serviceId);
+      
+      return {
+        id: data.id,
+        itemId: data.itemId,
+        ...(isNonStockService 
+          ? { nonStockServiceId: data.serviceId, isNonStockService: true }
+          : { serviceId: data.serviceId, isNonStockService: false }
+        ),
+        width: data.width,
+        height: data.height,
+        discount: data.discount,
+        level: data.level,
+        totalAmount: data.totalAmount,
+        adminApproval: data.adminApproval,
+        uomId: data.uomId,
+        quantity: data.quantity,
+        unitPrice: data.unitPrice,
+        description: data.description,
+        isDiscounted: data.isDiscounted,
+        status: data.status,
+        orderId: data.orderId,
+        pricingId: data.pricingId,
+        unit: data.unit,
+        baseUomId: data.baseUomId,
+      };
+    });
+
+    const paymentTermStatus = remainingAmount <= 0
+      ? 'Paid'
+      : (totaTransaction > 0 ? 'Partially Paid' : 'Pending');
+
+    const paymentData = {
+      totalAmount: totaTransaction,
+      remainingAmount: remainingAmount,
+      status: paymentTermStatus,
+      forcePayment: forcePayment,
+      transactions: paymentTransactions.map((transaction) => ({
+        ...transaction,
+        date: new Date(transaction.date),
+        status: (transaction.status && transaction.status.toLowerCase() === 'paid') ? 'Paid' : 'Pending',
+      })),
+    }
+
+    if(paymentData.totalAmount > orderInfo.grandTotal){
+      toast.error("Payment amount cannot be greater than the grand total");
+      return;
+    }
+
+    const commissionData = {
+      salesPartnerId: salesPartnerSearch.id,
+      totalAmount: totalCommission,
+      paidAmount: 0,
+      transactions: commissionTransactions.map((transaction) => ({
+        ...transaction,
+        status: (transaction.status && transaction.status.toLowerCase() === 'paid') ? 'Paid' : 'Pending',
+        date: new Date(transaction.date),
+      })),
+    }
+
+    if (commissionData.totalAmount > 0 && !salesPartnerSearch.id) {
+      toast.error("Please select a sales partner if there is a commission");
+      return;
+    }
+
+    const data = {
+      ...orderInfo,
+      fileNames: fileName,
+      orderItems: ordeItemData,
+      paymentTerm: [paymentData],
+      commission: commissionData.totalAmount > 0 ? [commissionData] : undefined,
+    }
+
+    try {
+      await createOrder(data).unwrap();
+      toast.success("Order added successfully");
+      navigate("/dashboard");
+    } catch (error) {
+      const fetchError = error as FetchBaseQueryError;
+      const errorMessage = handleApiError(fetchError, "Order creation failed");
+      toast.error(errorMessage);
+    }
+
+  };
+
+
+  if (isError) return <ErroPage error={error.toString()} />;
+  if (isItemsLoading || isCustomersLoading || isLoading || isPricingsLoading || isServicesLoading || isNonStockServicesLoading || isDiscountsLoading) return <Loader />;
+
+  return (
+    <>
+      <Breadcrumb pageName="New Order" />
+      <section className="bg-white dark:bg-boxdark">
+        <form onSubmit={handleSubmit}>
+          <>
+            <div className="grid sm:grid-cols-3 sm:gap-6 mb-4 p-4">
+              <div className="w-full">
+                <label
+                  htmlFor="series"
+                  className="mb-3 block text-black dark:text-white"
+                >
+                  Series
+                </label>
+                <input
+                  type="text"
+                  name="series"
+                  value={orderInfo.series}
+                  readOnly
+                  id="series"
+                  className="w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                />
+              </div>
+              <div className="">
+                <label htmlFor="orderDate" className="mb-3 block text-black dark:text-white">
+                  Order Date
+                </label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    name="orderDate"
+                    onChange={handleDateChange}
+                    value={orderInfo.orderDate}
+                    required
+                    id="orderDate"
+                    placeholder="Select a date"
+                    className="custom-input-date custom-input-date-1 w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                  />
+                </div>
+              </div>
+              <div className="">
+                <label htmlFor="deliveryDate" className="mb-3 block text-black dark:text-white">
+                  Delivery Date
+                </label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    name="deliveryDate"
+                    onChange={handleDateChange}
+                    value={orderInfo.deliveryDate}
+                    required
+                    id="deliveryDate"
+                    placeholder="Select a date"
+                    className="custom-input-date custom-input-date-1 w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                  />
+                </div>
+              </div>
+              <div className="w-full relative">
+                <CustomerSearchInput
+                  handleCustomerInfo={handleCustomerSearch}
+                  value={customerSearch.fullName}
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="orderSource"
+                  className="mb-3 block text-black dark:text-white"
+                >
+                  Order source
+                </label>
+                <select
+                  defaultValue="telegram"
+                  name="orderSource"
+                  onChange={handleOrderInfo}
+                  value={orderInfo.orderSource}
+                  id="orderSource"
+                  required
+                  className="w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                >
+                  <option value="">Select order source</option>
+                  <option value="telegram">Telegram</option>
+                  <option value="phone">Phone</option>
+                  <option value="In person">In person</option>
+                  <option value="whatsapp">Whatsapp</option>
+                </select>
+              </div>
+            </div>
+
+
+            <div>
+              <button
+                type="button"
+                className="text-black dark:text-white w-full py-2 px-4 border-t border-b border-[#eee] mb-4 font-semibold flex items-center gap-4"
+              >
+                Orders List{" "}
+              </button>
+              <Tabs tabs={tabs} activeTabId={activeTabId} onTabChange={handleTabChange} />
+              {activeTabId === 'general' && (
+                <div className="rounded-sm border border-stroke border-t-0 bg-white dark:border-strokedark dark:bg-boxdark">
+                  <div className="max-w-full overflow-x-auto">
+                    <div className="max-w-full px-4">
+                      <table className="w-full table-auto">
+                        <thead>
+                          <tr className="bg-gray-2 text-left dark:bg-meta-4">
+                            <th className="py-4 px-4 font-medium text-black dark:text-white">
+                              No
+                            </th>
+                            <th
+                              className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white"
+                            >
+                              Item
+                            </th>
+                            <th
+                              className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white"
+                            >
+                              Service
+                            </th>
+                            <th
+                              className="py-4 px-4 font-medium text-black dark:text-white"
+                            >
+                              UOM
+                            </th>
+                            <th
+                              className="min-w-[100px] py-4 px-4 font-medium text-black dark:text-white"
+                            >
+                              Quantity
+                            </th>
+                            <th
+                              className="min-w-[100px] py-4 px-4 font-medium text-black dark:text-white"
+                            >
+                              Width
+                            </th>
+                            <th
+                              className="min-w-[100px] py-4 px-4 font-medium text-black dark:text-white"
+                            >
+                              Height
+                            </th>
+                            <th
+                              className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white"
+                            >
+                              U.Price
+                            </th>
+                            <th
+                              className="py-4 px-4 font-medium text-black dark:text-white"
+                            >
+                              {/* Action */}
+                              <span className="font-semibold flex justify-center items-center">
+                                <CiSettings className="text-xl font-bold" />
+                              </span>
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {formData && formData.length === 0 && (
+                            <tr>
+                              <td colSpan={7} className="text-center">
+                                No data found
+                              </td>
+                            </tr>
+                          )}
+                          {formData &&
+                            updatedFormData.map((data, index) => (
+                              <tr
+                                key={index}
+                              >
+                                <td className="border-b text-graydark dark:text-white border-[#eee] py-2 px-4 dark:border-strokedark">
+                                  {index + 1}
+                                </td>
+                                <td className="min-w-[220px] relative border border-[#eee] dark:border-strokedark">
+                                  <SelectOptions
+                                    options={options}
+                                    defaultOptionText=""
+                                    selectedOption={formData[index].itemId}
+                                    onOptionChange={(value) => handleItemChange(index, value)}
+                                    containerMargin=""
+                                    labelMargin=""
+                                    border=""
+                                    title="Select item"
+                                  />
+                                </td>
+                                <td className="min-w-[220px] relative border border-[#eee] dark:border-strokedark">
+                                  <SelectOptions
+                                    options={servicesOptions}
+                                    defaultOptionText=""
+                                    selectedOption={formData[index].serviceId || ''}
+                                    onOptionChange={(value) => handleServiceChange(index, value)}
+                                    containerMargin=""
+                                    labelMargin=""
+                                    border=""
+                                    title="Select services"
+                                  />
+                                </td>
+                                <td className="min-w-[220px] relative border border-[#eee] dark:border-strokedark">
+                                  <SelectOptions
+                                    options={formData[index]?.uomsOptions?.map((uom) => ({
+                                      value: uom.id,
+                                      label: uom.abbreviation,
+                                    })) || []}
+                                    defaultOptionText=""
+                                    selectedOption={formData[index].uomId}
+                                    onOptionChange={(value) => handleUnitChange(index, value)}
+                                    containerMargin=""
+                                    labelMargin=""
+                                    border=""
+                                    title="Select units"
+                                  />
+                                </td>
+                                <td className="py-2 border-b text-graydark dark:text-white border-[#eee] dark:border-strokedark">
+                                  <input
+                                    title="Quantity of the product"
+                                    type="number"
+                                    name="quantity"
+                                    value={data.quantity}
+                                    min={1}
+                                    required
+                                    onChange={(e) => handleQuantityChange(index, e.target.value)}
+                                    className="w-full rounded  bg-transparent px-2 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                                  />
+                                </td>
+                                <td className="py-2 border-b text-graydark dark:text-white border-[#eee] dark:border-strokedark">
+                                  <input
+                                    title="width"
+                                    step="any"
+                                    type="number"
+                                    name="width"
+                                    id="width"
+                                    onChange={(e) => handleInputChanges(index, e)}
+                                    value={data.width}
+                                    className="w-full rounded bg-transparent px-2 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                                    required
+                                    min={0}
+                                    disabled={!data.constant}
+                                  />
+                                </td>
+                                <td className="py-2 border-b text-graydark dark:text-white border-[#eee] dark:border-strokedark">
+                                  <input
+                                    title="height"
+                                    step="any"
+                                    type="number"
+                                    name="height"
+                                    id="height"
+                                    onChange={(e) => handleInputChanges(index, e)}
+                                    value={data.height}
+                                    className="w-full rounded bg-transparent px-2 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                                    required
+                                    min={0}
+                                    disabled={!data.constant}
+                                  />
+                                </td>
+                                <td className="py-2 border-b text-graydark dark:text-white border-[#eee] dark:border-strokedark">
+                                  {data.unitPrice}
+                                </td>
+                                <td className="px-4 py-2 border-b text-graydark dark:text-white border-[#eee] dark:border-strokedark">
+                                  <button
+                                    onClick={() => handleCancel(index)}
+                                    title="action"
+                                    type="button"
+                                    className="flex items-center justify-between gap-2 text-graydark dark:text-white font-medium rounded-lg text-lg px-2.5 py-2.5 text-center"
+                                  >
+                                    <IoMdClose />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div className="p-4 flex items-center justify-between">
+                    <button
+                      onClick={handleAddRow}
+                      type="button"
+                      className="flex items-center justify-center rounded border-[1.5px] border-stroke bg-transparent px-2 py-1 font-medium text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600 hover:text-primary dark:hover:text-primary transition-colors"
+                    >
+                      Add row
+                    </button>
+                    <button
+                      type="button"
+                      className="flex items-center justify-center rounded border-[1.5px] border-stroke bg-transparent px-2 py-1 font-medium text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600 hover:text-primary dark:hover:text-primary transition-colors"
+                    >
+                      Download
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeTabId === "payment-terms" && (
+                <div
+                  className={`${user?.roles !== "ADMIN" && user?.roles !== "FINANCE"
+                    ? "hidden"
+                    : ""
+                    }`}
+                >
+                  {/* transactions */}
+
+                  <div className="max-w-full overflow-x-auto p-4">
+                    <div className="w-full flex items-center mb-4">
+                      <div className="relative items-center text-black dark:text-white w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary">
+                        <label
+                          htmlFor="forcePayment"
+                          className="flex cursor-pointer select-none items-center"
+                        >
+                          <div className="relative">
+                            <input
+                              title="Force Payment"
+                              type="checkbox"
+                              id="forcePayment"
+                              className="sr-only"
+                              checked={forcePayment}
+                              onChange={handleChangeForcePayment}
+                            />
+                            <div
+                              className={`mr-4 flex h-5 w-5 items-center justify-center rounded border border-graydark ${forcePayment === true ? 'border-primary bg-gray dark:bg-transparent' : 'border-gray dark:border-strokedark bg-transparent'
+                                }`}
+                            >
+                              <span
+                                className={`h-2.5 w-2.5 rounded-sm ${forcePayment === true ? 'bg-primary' : 'bg-transparent'}`}
+                              >
+                              </span>
+                            </div>
+                          </div>
+                        </label>
+                        <span className="absolute left-12 top-1.5">Force payment</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between p-4">
+                      <strong className="text-graydark">
+                        Payment Totals
+                      </strong>
+                      <div className="text-graydark">
+                        <p className="flex gap-4 justify-between">
+                          <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                            Grand total :
+                          </span>
+                          <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                            {orderInfo.grandTotal.toLocaleString()}
+                          </span>
+                        </p>
+                        <p className="flex gap-4 justify-between">
+                          <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                            Total payment :
+                          </span>
+                          <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                            {totaTransaction}
+                          </span>
+                        </p>
+                        <p className="flex gap-4 justify-between">
+                          <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                            Remaining amount :
+                          </span>
+                          <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                            {remainingAmount}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                    <table className="w-full table-auto">
+                      <thead>
+                        <tr className="bg-gray-2 text-left dark:bg-meta-4">
+                          <th className="py-2 px-4 font-medium text-black dark:text-white">
+                            No
+                          </th>
+                          <th className="min-w-[150px] p-4 font-medium text-black dark:text-white">
+                            Date
+                          </th>
+                          <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                            Payment method
+                          </th>
+                          <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                            Description
+                          </th>
+                          <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                            Amount
+                          </th>
+                          <th className="py-4 px-4 font-medium text-black dark:text-white">
+                            Reference
+                          </th>
+                          <th className="py-4 px-4 font-medium text-black dark:text-white">
+                            Status
+                          </th>
+                          <th className="py-4 px-4 font-medium text-black dark:text-white">
+                            {/* Action */}
+                            <span className="font-semibold flex justify-center items-center">
+                              <CiSettings className="text-xl font-bold" />
+                            </span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paymentTransactions && paymentTransactions.length === 0 && (
+                          <tr>
+                            <td colSpan={7} className="text-center">
+                              No data found
+                            </td>
+                          </tr>
+                        )}
+                        {paymentTransactions &&
+                          paymentTransactions.map((data, index) => (
+                            <tr key={index}>
+                              <td className="py-2 px-4 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                {index + 1}
+                              </td>
+                              <td className="py-2 px-4 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                {data.date}
+                              </td>
+
+                              <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                <label
+                                  htmlFor={`${data.paymentMethod}s-${index}`}
+                                  className="sr-only peer"
+                                >
+                                  Select an option
+                                </label>
+                                <select
+                                  title="paymentMethod"
+                                  onChange={(e) => handlePaymentMethod(index, e)}
+                                  name="paymentMethod"
+                                  value={data.paymentMethod}
+                                  required
+                                  className="w-full rounded bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                                >
+                                  <option value="cash">Cash</option>
+                                  <option value="bank-transfer">Bank Transfer</option>
+                                  <option value="mobile-banking">Mobile Banking</option>
+                                  <option value="check">Check</option>
+                                </select>
+                              </td>
+
+                              <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                <label
+                                  htmlFor={`${data.description}-${index}`}
+                                  className="sr-only peer"
+                                >
+                                  Description
+                                </label>
+                                <input
+                                  type="text"
+                                  name="description"
+                                  value={data.description}
+                                  title="description"
+                                  className="w-full rounded bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                  onChange={(e) => handleFormChange(index, e)}
+                                />
+                              </td>
+                              <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                <label
+                                  htmlFor={`${data.amount}-${index}`}
+                                  className="sr-only peer"
+                                >
+                                  Payment amount
+                                </label>
+                                <input
+                                  type="number"
+                                  name="amount"
+                                  required
+                                  value={data.amount}
+                                  title="amount"
+                                  className="w-full rounded bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                                  onChange={(e) => handleFormChange(index, e)}
+                                />
+                              </td>
+                              <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                <label
+                                  htmlFor={`${data.reference}-${index}`}
+                                  className="sr-only peer"
+                                >
+                                  Reference
+                                </label>
+                                <input
+                                  type="text"
+                                  name="reference"
+                                  value={data.reference}
+                                  title="reference"
+                                  required
+                                  className="w-full rounded bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                  onChange={(e) => handleFormChange(index, e)}
+                                />
+                              </td>
+                              <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                <span
+                                  className={`${data?.status === "paid"
+                                    ? "bg-success/10 text-success/80 font-medium me-2 px-2.5 py-0.5 rounded dark:bg-success/90 dark:text-success/30"
+                                    : "bg-primary/10 text-primary/80 font-medium me-2 px-2.5 py-0.5 rounded dark:bg-primary/90 dark:text-primary/30"
+                                    }`}
+                                >
+                                  {data?.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                <button
+                                  onClick={() => handleCancelPayment(index)}
+                                  title="action"
+                                  type="button"
+                                  className="text-black font-medium rounded-lg text-sm px-5 py-2.5 text-center"
+                                >
+                                  <IoMdClose />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="p-4 flex items-center justify-between">
+                    <button
+                      onClick={handleAddPaymentRow}
+                      type="button"
+                      className="flex items-center justify-center rounded border-[1.5px] border-stroke bg-transparent px-2 py-1 font-medium text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600 hover:text-primary dark:hover:text-primary transition-colors"
+                    >
+                      Add row
+                    </button>
+                    <button
+                      type="button"
+                      className="flex items-center justify-center rounded border-[1.5px] border-stroke bg-transparent px-2 py-1 font-medium text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600 hover:text-primary dark:hover:text-primary transition-colors"
+                    >
+                      Download
+                    </button>
+                  </div>
+                </div>
+              )}
+
+{activeTabId === "commissions" && (
+                <div
+                  className={`${user?.roles !== "ADMIN" && user?.roles !== "FINANCE"
+                    ? "hidden"
+                    : ""
+                    }`}
+                >
+                  <div
+                    className={`grid grid-cols-2 gap-4 px-4 mb-4`}>
+                    <div className="w-full relative">
+                      <SalesPartnerSearchInput
+                        handleSalesPartnerInfo={handleSalesPersonSearch}
+                        value={salesPartnerSearch.fullName}
+                      />
+                    </div>
+                    <div className="">
+                      <label
+                        htmlFor="totalCommission"
+                        className="mb-3 block text-black dark:text-white"
+                      >
+                        Total Commission
+                      </label>
+                      <input
+                        value={totalCommission?.toFixed(2) || ""}
+                        readOnly
+                        type="number"
+                        name="totalCommission"
+                        id="totalCommission"
+                        className="text-black dark:text-white w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                        placeholder="0"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="max-w-full overflow-x-auto px-4">
+                    <table className="w-full table-auto">
+                      <thead>
+                        <tr className="bg-gray-2 text-left dark:bg-meta-4">
+                          <th className="py-4 px-4 font-medium text-black dark:text-white">
+                            No
+                          </th>
+                          <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                            Date
+                          </th>
+                          <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                            Item
+                          </th>
+                          <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                            Services
+                          </th>
+                          <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                            Description
+                          </th>
+                          <th className="min-w-[200px] py-4 px-4 font-medium text-black dark:text-white">
+                            Payment Method
+                          </th>
+                          <th className="min-w-[200px] py-4 px-4 font-medium text-black dark:text-white">
+                            Commission %
+                          </th>
+                          <th className="min-w-[200px] py-4 px-4 font-medium text-black dark:text-white">
+                            Reference
+                          </th>
+                          <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                            Amount
+                          </th>
+                          <th className="py-4 px-4 font-medium text-black dark:text-white">
+                            Status
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {formData && formData.length === 0 && (
+                          <tr>
+                            <td colSpan={7} className="text-center">
+                              No data found
+                            </td>
+                          </tr>
+                        )}
+                        {
+                          formData.map((data, index) => (
+                            <tr key={index}>
+                              <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                {index + 1}
+                              </td>
+                              <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                {commissionTransactions[index]?.date || new Date().toLocaleDateString()}
+                              </td>
+                              <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                {items?.find((item) => item.id === data.itemId)?.name}
+                              </td>
+                              <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                {services?.find((service) => service.id === data.serviceId)?.name || 
+                                 nonStockServices?.find((service) => service.id === data.serviceId)?.name || 
+                                 'N/A'}
+                              </td>
+                              <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                <input
+                                  title="description"
+                                  type="text"
+                                  name="description"
+                                  id="description"
+                                  className="w-full rounded bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                  value={commissionTransactions[index]?.description}
+                                  onChange={(e) => handleCommissionChange(index, e)}
+                                />
+                              </td>
+                              <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                <label
+                                  htmlFor={`${commissionTransactions[index]?.paymentMethod}-${index}`}
+                                  className="sr-only peer"
+                                >
+                                  Select an option
+                                </label>
+                                <select
+                                  title="paymentMethod"
+                                  onChange={(e) => handleCommissionPaymentMethod(index, e)}
+                                  name="paymentMethod"
+                                  value={commissionTransactions[index]?.paymentMethod}
+                                  defaultValue='cash'
+                                  required
+                                  className="w-full rounded bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                                >
+                                  <option value="cash">Cash</option>
+                                  <option value="bank-transfer">Bank Transfer</option>
+                                  <option value="mobile-banking">Mobile Banking</option>
+                                  <option value="check">Check</option>
+                                </select>
+                              </td>
+                              <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                <input
+                                  title="percentage"
+                                  type="number"
+                                  name="percentage"
+                                  className="w-full rounded bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                  required
+                                  min={0}
+                                  value={commissionTransactions[index]?.percentage}
+                                  onChange={(e) => handleCommissionChange(index, e)}
+                                />
+                              </td>
+                              <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                <input
+                                  title="reference"
+                                  type="text"
+                                  name="reference"
+                                  id="reference"
+                                  className="w-full rounded bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                                  required
+                                  min={0}
+                                  value={commissionTransactions[index]?.reference}
+                                  onChange={(e) => handleCommissionChange(index, e)}
+                                />
+                              </td>
+                              <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                {commissionTransactions[index]?.amount}
+                              </td>
+                              <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                {commissionTransactions[index]?.status}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+
+              {activeTabId === "other-information" && (
+                <>
+                  {user?.roles === "ADMIN" && (
+                    <>
+
+                      <div className="max-w-full overflow-x-auto px-4">
+                        <table className="w-full table-auto">
+                          <thead>
+                            <tr className="bg-gray-2 text-left dark:bg-meta-4">
+                              <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                No
+                              </th>
+                              <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                                Item
+                              </th>
+                              <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                discount
+                              </th>
+                              <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                Level
+                              </th>
+                              <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                T.Unit
+                              </th>
+                              <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                U.Price
+                              </th>
+                              <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                Total
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {formData && formData.length === 0 && (
+                              <tr>
+                                <td colSpan={7} className="text-center">
+                                  No data found
+                                </td>
+                              </tr>
+                            )}
+                            {
+                              formData.map((data, index) => (
+                                <tr key={index}>
+                                  <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                    {index + 1}
+                                  </td>
+                                  <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                    {items?.find((item) => item.id === data.itemId)?.name}
+                                  </td>
+                                  <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                    <div className="flex items-center gap-2 relative">
+                                      <span className="flex-1 px-2">
+                                        {data.discount}
+                                      </span>
+                                      <label
+                                        key={index}
+                                        className="inline-flex items-center cursor-pointer w-1/4"
+                                        htmlFor={`isDiscounted-${index}`}
+                                      >
+                                        <input
+                                          onChange={(e) => handleDiscountChange(index, e)}
+                                          type="checkbox"
+                                          name="isDiscounted"
+                                          id={`isDiscounted-${index}`}
+                                          checked={data.isDiscounted}
+                                          className="sr-only peer"
+                                        />
+                                        <div className="relative w-8 h-4 bg-bodydark1 peer-focus:outline-none rounded-full peer dark:bg-graydark peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:start-[2px] after:bg-white after:border-gray-3 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all dark:border-graydark peer-checked:bg-primary"></div>
+                                      </label>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                    {data.level}
+                                  </td>
+                                  <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                    {data.unit}
+                                  </td>
+                                  <td className="px-4 py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                    {data.unitPrice.toFixed(2)}
+                                  </td>
+                                  <td className="py-2 border-b text-graydark border-[#eee] dark:border-strokedark">
+                                    {data.totalAmount.toFixed(2)}
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="pt-4">
+                        <button
+                          onClick={handleCollapseDiscount}
+                          type="button"
+                          className="text-black dark:text-white w-full py-2 px-4 border-t border-[#eee] border-b mb-4 font-semibold flex items-center gap-4"
+                        >
+                          Additional Discount{" "}
+                          <span className="font-thin">
+                            {collapseDisount ? <FaChevronUp /> : <FaChevronDown />}{" "}
+                          </span>{" "}
+                        </button>
+                      </div>
+                      <div
+                        className="flex justify-end items-center gap-4 pb-4"
+                      >
+                        <div
+                          className={`${collapseDisount ? "hidden" : ""
+                            } px-4 md:w-1/2`}
+                        >
+                          <label
+                            htmlFor="userInputDiscount"
+                            className="mb-3 block text-black dark:text-white"
+                          >
+                            Discount
+                          </label>
+                          <input
+                            type="number"
+                            name="userInputDiscount"
+                            value={parseFloat(userInputDiscount).toFixed(2)}
+                            id="userInputDiscount"
+                            className="w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                            onChange={handleUserInputDiscount}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+
+
+              <div className="flex justify-between pt-4 px-4">
+                <strong className="text-graydark">
+                  Totals
+                </strong>
+                <div className="text-graydark">
+                  <p className="flex gap-4 justify-between">
+                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                      Total quantity
+                    </span>
+                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                      {orderInfo.totalQuantity}
+                    </span>
+                  </p>
+                  <p className="flex gap-4 justify-between">
+                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                      Total amount
+                    </span>
+                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                      {orderInfo.totalAmount.toLocaleString()}
+                    </span>
+                  </p>
+                  <p className="flex gap-4 justify-between">
+                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                      Tax(15%)
+                    </span>
+                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                      {orderInfo.tax.toLocaleString()}
+                    </span>
+                  </p>
+                  <p className="flex gap-4 justify-between">
+                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                      Grand total
+                    </span>
+                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                      {orderInfo.grandTotal.toLocaleString()}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </>
+          <div className="p-4 flex justify-between">
+            <div className="w-1/2">
+              <label
+                htmlFor="message"
+                className="mb-3 block text-black dark:text-white"
+              >
+                Your message
+              </label>
+              <textarea
+                onChange={handleOrderNote}
+                value={orderInfo.internalNote}
+                name="internalNote"
+                id="message"
+                rows={4}
+                className="text-black dark:text-white w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                placeholder="Leave a comment..."
+              ></textarea>
+            </div>
+            <div>
+              <p className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                File Names
+              </p>
+              <ul className="space-y-4 text-left text-gray-500 dark:text-gray-400">
+                {fileName.map((item, index) => (
+                  <li
+                    key={index}
+                    className="flex items-center space-x-3 rtl:space-x-reverse"
+                  >
+                    <svg
+                      className="flex-shrink-0 w-3.5 h-3.5 text-green-500 dark:text-green-400"
+                      aria-hidden="true"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 16 12"
+                    >
+                      <path
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M1 5.917 5.724 10.5 15 1.5"
+                      />
+                    </svg>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <button
+            type="submit"
+            disabled={isCreating}
+            className="flex justify-center rounded bg-primary p-3 font-medium text-gray">
+            Submit
+          </button>
+        </form>
+      </section>
+    </>
+  );
+};

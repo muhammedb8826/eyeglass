@@ -1,0 +1,67 @@
+/* About Page Specific Styles - Consistent Color Scheme */
+.about-hero-section {
+  background: linear-gradient(to right, #ec4899, #f97316, #ec4899) !important;
+  min-height: 400px !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.about-hero-section h1,
+.about-hero-section p,
+.about-hero-section span:not(.text-pink-400) {
+  color: white !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+.about-hero-section .text-pink-400 {
+  color: #fbbf24 !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Consistent color scheme for all sections */
+.about-section-title {
+  color: #ec4899 !important;
+}
+
+.about-section-heading {
+  color: #1f2937 !important;
+}
+
+.about-section-text {
+  color: #4b5563 !important;
+}
+
+.about-accent-text {
+  color: #ec4899 !important;
+}
+
+.about-stats-number {
+  color: #ec4899 !important;
+}
+
+.about-service-icon {
+  color: #ec4899 !important;
+}
+
+.about-cta-bg {
+  background: linear-gradient(to right, #ec4899, #f97316, #ec4899) !important;
+}
+
+.about-cta-button {
+  background: white !important;
+  color: #ec4899 !important;
+}
+
+.about-cta-button:hover {
+  background: #f3f4f6 !important;
+}
+
+.about-cta-button-outline {
+  border: 2px solid white !important;
+  color: white !important;
+}
+
+.about-cta-button-outline:hover {
+  background: white !important;
+  color: #ec4899 !important;
+}

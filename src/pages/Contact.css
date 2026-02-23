@@ -1,0 +1,161 @@
+/* Contact Page Styles */
+.contact-section-title {
+  color: #ec4899 !important;
+  letter-spacing: 0.1em !important;
+}
+
+.contact-section-heading {
+  color: #1f2937 !important;
+  line-height: 1.2 !important;
+}
+
+.contact-section-text {
+  color: #6b7280 !important;
+  line-height: 1.6 !important;
+}
+
+.contact-info-card {
+  background: white !important;
+  border-radius: 1rem !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
+  transition: all 0.3s ease !important;
+  border: 1px solid #f3f4f6 !important;
+  min-height: 300px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  position: relative !important;
+  overflow: hidden !important;
+  z-index: 1 !important;
+  animation: fadeInUp 0.6s ease-out forwards !important;
+  opacity: 1 !important;
+  transform: translateY(0) !important;
+}
+
+.contact-info-card:hover {
+  transform: translateY(-5px) !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15) !important;
+  border-color: #ec4899 !important;
+}
+
+.contact-input {
+  background: white !important;
+  color: #374151 !important;
+  font-size: 1rem !important;
+  transition: all 0.3s ease !important;
+}
+
+.contact-input:focus {
+  outline: none !important;
+  border-color: #ec4899 !important;
+  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1) !important;
+}
+
+.contact-input::placeholder {
+  color: #9ca3af !important;
+}
+
+.contact-submit-button {
+  background: linear-gradient(135deg, #ec4899, #f97316) !important;
+  border: none !important;
+  color: white !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.025em !important;
+  transition: all 0.3s ease !important;
+}
+
+.contact-submit-button:hover {
+  background: linear-gradient(135deg, #db2777, #ea580c) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 20px 40px rgba(236, 72, 153, 0.3) !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .contact-info-card {
+    padding: 1.5rem !important;
+  }
+  
+  .contact-section-heading {
+    font-size: 2rem !important;
+  }
+  
+  .contact-section-text {
+    font-size: 1rem !important;
+  }
+}
+
+/* Animation delays for contact info cards */
+
+.contact-info-card:nth-child(1) { animation-delay: 0.1s !important; }
+.contact-info-card:nth-child(2) { animation-delay: 0.2s !important; }
+.contact-info-card:nth-child(3) { animation-delay: 0.3s !important; }
+.contact-info-card:nth-child(4) { animation-delay: 0.4s !important; }
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0 !important;
+    transform: translateY(30px) !important;
+  }
+  to {
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+  }
+}
+
+/* Form focus effects */
+.contact-input:focus {
+  transform: scale(1.02) !important;
+}
+
+/* Social media icons hover effects */
+.social-links a:hover {
+  transform: scale(1.1) !important;
+  transition: transform 0.2s ease !important;
+}
+
+/* Map section styling */
+.map-container {
+  background: linear-gradient(135deg, #fdf2f8, #fef3c7) !important;
+  border-radius: 1rem !important;
+  overflow: hidden !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Enhanced button hover effects */
+.contact-submit-button:active {
+  transform: scale(0.98) !important;
+}
+
+/* Input group styling */
+.input-group {
+  position: relative !important;
+}
+
+.input-group label {
+  position: absolute !important;
+  top: -0.5rem !important;
+  left: 1rem !important;
+  background: white !important;
+  padding: 0 0.5rem !important;
+  font-size: 0.875rem !important;
+  color: #6b7280 !important;
+  font-weight: 500 !important;
+}
+
+/* Enhanced card shadows */
+
+.contact-info-card::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: -100% !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: linear-gradient(90deg, transparent, rgba(236, 72, 153, 0.1), transparent) !important;
+  transition: left 0.5s ease !important;
+}
+
+.contact-info-card:hover::before {
+  left: 100% !important;
+}

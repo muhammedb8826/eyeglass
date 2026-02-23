@@ -1,0 +1,67 @@
+/* Footer-specific styles to override global text-body styles */
+.footer-component {
+  color: white !important;
+}
+
+.footer-component * {
+  color: white !important;
+}
+
+.footer-component p {
+  color: white !important;
+}
+
+.footer-component h3 {
+  color: white !important;
+}
+
+.footer-component a {
+  color: white !important;
+}
+
+.footer-component span {
+  color: white !important;
+}
+
+.footer-component div {
+  color: white !important;
+}
+
+.footer-component li {
+  color: white !important;
+}
+
+/* Hover effects */
+.footer-component a:hover {
+  color: #f472b6 !important;
+}
+
+/* Keep pink icons visible */
+.footer-component .text-pink-400 {
+  color: #f472b6 !important;
+}
+
+/* Ensure all text elements in footer are white */
+.footer-component .text-body,
+.footer-component .text-bodydark,
+.footer-component .text-bodydark1,
+.footer-component .text-bodydark2 {
+  color: white !important;
+}
+
+/* Better contrast for the new gray background */
+.footer-component {
+  background-color: #111827 !important; /* gray-900 */
+}
+
+.footer-component .border-t {
+  border-color: #374151 !important; /* gray-700 */
+}
+
+.footer-component .bg-gray-950 {
+  background-color: #030712 !important; /* gray-950 */
+}
+
+.footer-component .hover\:bg-gray-700:hover {
+  background-color: #374151 !important; /* gray-700 */
+}

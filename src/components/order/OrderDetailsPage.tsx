@@ -1,0 +1,2592 @@
+import ErroPage from "../common/ErroPage";
+import { Link, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { toast } from "react-toastify";
+import CustomerSearchInput from "../customer/CustomerSearchInput";
+import { FaChevronDown, FaChevronUp } from "react-icons/fa";
+import { CiMenuKebab, CiSettings } from "react-icons/ci";
+import { SalesPartnerSearchInput } from "../commission/SalesPartnerSearchInput";
+import { IoMdClose } from "react-icons/io";
+import Loader from "@/common/Loader";
+import Breadcrumb from "../Breadcrumb";
+import {
+  useGetOrderQuery,
+  useUpdateOrderMutation,
+} from "@/redux/order/orderApiSlice";
+import { useGetAllItemsQuery } from "@/redux/items/itemsApiSlice";
+import { useGetAllCustomersQuery } from "@/redux/customer/customerApiSlice";
+import { OrderItemType } from "@/types/OrderItemType";
+import { OrderType } from "@/types/OrderType";
+import { CustomerType } from "@/types/CustomerType";
+import Tabs from "@/common/TabComponent";
+import { SalesPartnerType } from "@/types/SalesPartnerType";
+import SelectOptions from "@/common/SelectOptions";
+import { useSelector } from "react-redux";
+import { selectCurrentUser } from "@/redux/authSlice";
+import { useGetAllPricingsQuery } from "@/redux/pricing/pricingApiSlice";
+import { useGetAllServicesQuery } from "@/redux/services/servicesApiSlice";
+import { useGetAllNonStockServicesQuery } from "@/redux/services/nonStockServicesApiSlice";
+import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
+import { ItemType } from "@/types/ItemType";
+import { MdDelete } from "react-icons/md";
+import { BsTicketDetailed } from "react-icons/bs";
+import { PricingType } from "@/types/PricingType";
+import { useGetAllDiscountsQuery } from "@/redux/discount/discountApiSlice";
+import { FaPrint } from "react-icons/fa6";
+import { useReactToPrint } from "react-to-print";
+import { useGetFilePathsQuery } from "@/redux/file-path/filePathApiSlice";
+import { handleApiError } from "@/utils/errorHandling";
+import { PaymentTransactions as PaymentTransactionsType } from "@/types/PaymentTransactions";
+
+
+
+const date = new Date();
+const formattedDate = date.toISOString().split("T")[0];
+
+type PaymentTransactionUI = Omit<PaymentTransactionsType, 'date'> & { date: string };
+
+const tabs = [
+  { id: "general", label: "General" },
+  { id: "payment-terms", label: "Payment terms" },
+  { id: "commissions", label: "Commissions" },
+  { id: "other-information", label: "Other information" },
+];
+
+export const OrderDetailsPage = () => {
+  const user = useSelector(selectCurrentUser);
+  const { id } = useParams();
+  const {
+    data: order,
+    isLoading,
+    error,
+    isError,
+  } = useGetOrderQuery(id ? id : "");
+  const { data: items, isLoading: isItemsLoading } = useGetAllItemsQuery();
+  const { data: customers, isLoading: isCustomersLoading } =
+    useGetAllCustomersQuery({});
+  const { data: pricings, isLoading: isPricingsLoading } =
+    useGetAllPricingsQuery();
+  const { data: services, isLoading: isServicesLoading } =
+    useGetAllServicesQuery();
+  const { data: nonStockServices, isLoading: isNonStockServicesLoading } =
+    useGetAllNonStockServicesQuery();
+  const { data: discounts, isLoading: isDiscountsLoading } =
+    useGetAllDiscountsQuery();
+  const { data: filePaths, isLoading: isFilePathsLoading } =
+    useGetFilePathsQuery({
+      limit: 1000,
+      page: 1,
+    });
+
+  const [updateOrder, { isLoading: isUpdating }] = useUpdateOrderMutation();
+
+  const [fileName, setFileName] = useState<string[]>([]);
+
+  const [orderInfo, setOrderInfo] = useState<OrderType>({
+    id: "",
+    series: "IAN-ORD-YYYY-",
+    customerId: "",
+    status: "Pending",
+    orderSource: "",
+    orderDate: "",
+    deliveryDate: "",
+    totalAmount: 0,
+    tax: 0,
+    grandTotal: 0,
+    totalQuantity: 0,
+    internalNote: "",
+    adminApproval: false,
+    orderItems: [],
+  });
+
+  const [formData, setFormData] = useState<OrderItemType[]>([
+    {
+      id: "",
+      itemId: "",
+      serviceId: "",
+      width: "",
+      height: "",
+      discount: 0,
+      level: 0,
+      totalAmount: 0,
+      adminApproval: false,
+      uomId: "",
+      quantity: "",
+      unitPrice: 0,
+      description: "",
+      isDiscounted: false,
+      status: "Received",
+      servicesOptions: [],
+      uomsOptions: [],
+      orderId: order?.id || "",
+      pricingId: "",
+      constant: false,
+      unit: 0,
+      baseUomId: "",
+    },
+  ]);
+
+  const [paymentTransactions, setPaymentTransactions] = useState<PaymentTransactionUI[]>([]);
+
+  const [commissionTransactions, setCommissionTransactions] = useState([
+    {
+      commissionId: "",
+      date: new Date().toISOString().split("T")[0],
+      amount: 0,
+      percentage: 0,
+      paymentMethod: "cash",
+      reference: "",
+      description: "",
+      status: "pending",
+    },
+  ]);
+
+  const [customerSearch, setCustomerSearch] = useState({
+    id: "",
+    fullName: "",
+  });
+
+  const [salesPartnerSearch, setSalesPartnerSearch] = useState({
+    id: "",
+    fullName: "",
+  });
+
+  const [userInputDiscount, setUserInputDiscount] = useState("");
+  const [collapseDisount, setCollapseDiscount] = useState(false);
+  const [totaTransaction, setTotalTransaction] = useState(0);
+  const [remainingAmount, setRemainingAmount] = useState(0);
+  const [totalCommission, setTotalCommission] = useState(0);
+  const [forcePayment, setForcePayment] = useState(true);
+
+  const [activeTabId, setActiveTabId] = useState<string>("general");
+  const handleTabChange = (id: string) => {
+    setActiveTabId(id);
+  };
+
+  useEffect(() => {
+    if (order) {
+      setOrderInfo({
+        id: order.id,
+        series: order.series,
+        customerId: order.customerId,
+        status: order.status,
+        orderSource: order.orderSource,
+        orderDate: new Date(order.orderDate).toISOString().split("T")[0],
+        deliveryDate: new Date(order.deliveryDate).toISOString().split("T")[0],
+        totalAmount: order.totalAmount,
+        tax: order.tax,
+        grandTotal: order.grandTotal,
+        totalQuantity: order.totalQuantity,
+        internalNote: order.internalNote,
+        adminApproval: order.adminApproval,
+        orderItems: order.orderItems,
+      });
+      setFormData(
+        order.orderItems.map((item) => ({
+          ...item,
+          // Normalize serviceId to handle both stock and non-stock services
+          serviceId: item.serviceId || item.nonStockServiceId || '',
+          status: item.status || "Received",
+          constant:
+            items?.find((i) => i.id === item.itemId)?.unitCategory?.constant ||
+            false,
+          uomsOptions:
+            items?.find((i) => i.id === item.itemId)?.unitCategory?.uoms || [],
+        }))
+      );
+      setFileName(order.fileNames || []);
+      setPaymentTransactions(
+        (order.paymentTerm?.[0]?.transactions || []).map((transaction) => ({
+          ...transaction,
+          paymentTermId: order.paymentTerm?.[0]?.id || "",
+          date: new Date(transaction.date).toISOString().split("T")[0],
+        }))
+      );
+      setTotalTransaction(order.paymentTerm?.[0]?.totalAmount || 0);
+      setRemainingAmount(order.paymentTerm?.[0]?.remainingAmount || 0);
+      setForcePayment(order.paymentTerm?.[0]?.forcePayment || false);
+      setCommissionTransactions(
+        (order.commission?.[0]?.transactions || []).map((transaction) => ({
+          ...transaction,
+          commissionId: order.commission?.[0]?.id || "",
+          date: new Date(transaction.date).toISOString().split("T")[0],
+        }))
+      );
+      setTotalCommission(order.commission?.[0]?.totalAmount || 0);
+      setCustomerSearch({
+        id: order?.customer?.id || "",
+        fullName: order?.customer?.fullName || "",
+      });
+      setSalesPartnerSearch({
+        id: order?.commission?.[0]?.salesPartnerId || "",
+        fullName: order?.commission?.[0]?.salesPartner?.fullName || "",
+      });
+    }
+  }, [order, items]);
+
+  const [icons, setIcons] = useState<string[]>([]);
+  const [tooltipMessages, setTooltipMessages] = useState<string[]>([]);
+  const inputRefs = useRef(Array(fileName.length).fill(null));
+
+  useEffect(() => {
+    setIcons(Array(fileName.length).fill("default"));
+    setTooltipMessages(Array(fileName.length).fill("Copy to clipboard"));
+  }, [fileName]);
+
+  const copyToClipboard = (index: number) => {
+    inputRefs.current[index].select();
+    try {
+      navigator.clipboard.writeText(fileName[index]);
+      setTooltipMessages((prevMessages) => {
+        const newMessages = [...prevMessages];
+        newMessages[index] = "Copied!";
+        return newMessages;
+      });
+      setIcons((prevIcons) => {
+        const newIcons = [...prevIcons];
+        newIcons[index] = "success";
+        return newIcons;
+      });
+    } catch (err) {
+      console.error("Failed to copy: ", err);
+      setTooltipMessages((prevMessages) => {
+        const newMessages = [...prevMessages];
+        newMessages[index] = "Copy failed";
+        return newMessages;
+      });
+    }
+
+    setTimeout(() => {
+      setTooltipMessages((prevMessages) => {
+        const newMessages = [...prevMessages];
+        newMessages[index] = "Copy to clipboard";
+        return newMessages;
+      });
+      setIcons((prevIcons) => {
+        const newIcons = [...prevIcons];
+        newIcons[index] = "default";
+        return newIcons;
+      });
+    }, 1500);
+  };
+
+  const handleCommissionPaymentMethod = (
+    index: number,
+    e: React.ChangeEvent<HTMLSelectElement>
+  ) => {
+    if (user?.roles !== "ADMIN" && user?.roles !== "FINANCE") {
+      toast.error("You are not authorized to perform this action");
+      return;
+    }
+    const { value, name } = e.target;
+    setCommissionTransactions((prev) => {
+      const updatedData = [...prev];
+      updatedData[index] = {
+        ...updatedData[index],
+        [name]: value,
+      };
+      return updatedData;
+    });
+  };
+
+  const handleCommissionChange = (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (user?.roles !== "ADMIN" && user?.roles !== "FINANCE") {
+      toast.error("You are not authorized to perform this action");
+      return;
+    }
+    const { name, value } = e.target;
+
+    setCommissionTransactions((prev) => {
+      const updatedData = [...prev];
+      updatedData[index] = {
+        ...updatedData[index],
+        [name]: value,
+      };
+      return updatedData;
+    });
+
+    if (name === "percentage") {
+      const commission =
+        (parseFloat(value) / 100) *
+        parseFloat(formData[index]?.unitPrice?.toString() || "0");
+      setCommissionTransactions((prev) => {
+        const updatedData = [...prev];
+        updatedData[index] = {
+          ...updatedData[index],
+          percentage: parseFloat(value),
+          amount: commission,
+        };
+        return updatedData;
+      });
+    }
+  };
+
+  const handlePaymentMethod = (
+    index: number,
+    e: React.ChangeEvent<HTMLSelectElement>
+  ) => {
+    if (user?.roles !== "ADMIN" && user?.roles !== "FINANCE") {
+      toast.error("You are not authorized to perform this action");
+      return;
+    }
+    setPaymentTransactions((prev) => {
+      const updatedData = [...prev];
+      updatedData[index] = {
+        ...updatedData[index],
+        paymentMethod: e.target.value,
+      };
+      return updatedData;
+    });
+  };
+
+  useEffect(() => {
+    const totalTransaction = paymentTransactions?.reduce(
+      (acc, { amount }) => acc + Number(amount || 0),
+      0
+    );
+    setTotalTransaction(totalTransaction);
+    setRemainingAmount(orderInfo.grandTotal - totalTransaction);
+  }, [paymentTransactions, orderInfo.grandTotal]);
+
+  const handleFormChange = (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const { name, value } = e.target;
+    setPaymentTransactions((prev) => {
+      const updatedData = [...prev];
+      updatedData[index] = {
+        ...updatedData[index],
+        [name]: value,
+      };
+      return updatedData;
+    });
+  };
+
+  const handleAddPaymentRow = () => {
+    if (user?.roles !== "ADMIN" && user?.roles !== "FINANCE") {
+      toast.error("You are not authorized to perform this action");
+      return;
+    }
+    setPaymentTransactions((prev) => [
+      ...prev,
+      {
+        paymentTermId: order?.paymentTerm?.[0]?.id || "",
+        date: formattedDate,
+        paymentMethod: "cash",
+        reference: "",
+        amount: 0,
+        status: "pending",
+        description: "",
+      },
+    ]);
+  };
+
+  const handleAddRow = () => {
+    setFormData((prevFormData) => [
+      ...prevFormData,
+      {
+        id: "",
+        itemId: "",
+        serviceId: "",
+        width: "",
+        height: "",
+        discount: 0,
+        level: 0,
+        totalAmount: 0,
+        adminApproval: false,
+        uomId: "",
+        quantity: "",
+        unitPrice: 0,
+        description: "",
+        isDiscounted: false,
+        status: "Received",
+        servicesOptions: [],
+        uomsOptions: [],
+        orderId: order?.id || "",
+        pricingId: "",
+        constant: false,
+        unit: 0,
+        baseUomId: "",
+      },
+    ]);
+
+    setCommissionTransactions((prev) => [
+      ...prev,
+      {
+        commissionId: order?.commission?.[0]?.id || "",
+        date: new Date().toISOString().split("T")[0],
+        amount: 0,
+        percentage: 0,
+        paymentMethod: "cash",
+        reference: "",
+        description: "",
+        status: "pending",
+      },
+    ]);
+  };
+
+  // customer and order info handling
+  const handleOrderInfo = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setOrderInfo((prevOrderInfo) => ({
+      ...prevOrderInfo,
+      [name]: value,
+    }));
+  };
+
+  const handleOrderNote = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setOrderInfo((prevOrderInfo) => ({
+      ...prevOrderInfo,
+      [name]: value,
+    }));
+  };
+
+  const handleChangeForcePayment = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (user?.roles !== "ADMIN" && user?.roles !== "FINANCE") {
+      toast.error("You are not authorized to perform this action");
+      return;
+    }
+    const { checked } = e.target;
+    if (checked) {
+      setForcePayment(true);
+    } else {
+      setForcePayment(false);
+    }
+  };
+
+  const handleCustomerSearch = (customer: CustomerType) => {
+    setCustomerSearch((prevOrderInfo) => ({
+      ...prevOrderInfo,
+      id: customer.id,
+      fullName: customer.fullName,
+    }));
+    setOrderInfo((prevOrderInfo) => ({
+      ...prevOrderInfo,
+      customerId: customer.id,
+    }));
+  };
+
+  const handleSalesPersonSearch = (partner: SalesPartnerType) => {
+    setSalesPartnerSearch((prevOrderInfo) => ({
+      ...prevOrderInfo,
+      id: partner.id,
+      fullName: partner.fullName,
+    }));
+    setOrderInfo((prevOrderInfo) => ({
+      ...prevOrderInfo,
+      salesPartnersId: partner.id,
+    }));
+  };
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setOrderInfo((prevOrderInfo) => ({
+      ...prevOrderInfo,
+      [name]: value,
+    }));
+  };
+
+  const handleItemChange = (index: number, value: string) => {
+    const item = formData[index];
+
+    // Prevent changes if the item is in an approved state
+    if (
+      item.status !== "Edited" &&
+      item.status !== "Received" &&
+      item.status !== "Rejected"
+    ) {
+      toast.error("You cannot edit this item because it has been approved");
+      return;
+    }
+
+    const selectedItem = items?.find((item) => item.id === value);
+    if (selectedItem) {
+      const updatedFormData = [...formData];
+      updatedFormData[index] = {
+        ...updatedFormData[index],
+        itemId: value,
+        serviceId: "", // Reset service selection
+        pricingId: "", // Reset pricing
+        width: '', // Reset width
+        height: '', // Reset height
+        quantity: '', // Reset quantity
+        unitPrice: 0, // Reset unit price
+        totalAmount: 0, // Reset total amount
+        discount: 0, // Reset discount
+        level: 0, // Reset level
+        uomId: selectedItem.defaultUomId, // Set default UOM from item
+        uomsOptions: selectedItem.unitCategory?.uoms || [], // Set UOM options from item
+        constant: selectedItem.unitCategory?.constant || false, // Set constant from item
+        baseUomId: selectedItem.defaultUomId, // Set base UOM
+        unit: 0, // Reset unit
+        description: "", // Reset description
+        isDiscounted: false, // Reset discount flag
+      };
+
+      setFormData(updatedFormData);
+    }
+  };
+
+  const handleServiceChange = (index: number, value: string) => {
+    const item = formData[index];
+
+    // Prevent changes if the item is in an approved state
+    if (
+      item.status !== "Edited" &&
+      item.status !== "Received" &&
+      item.status !== "Rejected"
+    ) {
+      toast.error("You cannot edit this item because it has been approved");
+      return;
+    }
+    const selectedService = services?.find((service) => service.id === value);
+    const selectedNonStockService = nonStockServices?.find((service) => service.id === value);
+
+    if (selectedService || selectedNonStockService) {
+      const updatedFormData = [...formData];
+      updatedFormData[index] = {
+        ...updatedFormData[index],
+        serviceId: value,
+      };
+
+      const quantity = parseFloat(updatedFormData[index].quantity.toString());
+      const constant = updatedFormData[index].constant;
+
+      const selectedItem = items?.find(
+        (item) => item.id === updatedFormData[index].itemId
+      );
+
+      if (selectedItem) {
+        updatedFormData[index].unitPrice = parseFloat(
+          calculateUnitPrice(
+            updatedFormData[index],
+            selectedItem,
+            index
+          )?.toString() || "0"
+        );
+        updatedFormData[index].totalAmount = parseFloat(
+          calculateUnitPrice(
+            updatedFormData[index],
+            selectedItem,
+            index
+          )?.toString() || "0"
+        );
+      }
+
+      if (!isNaN(quantity) && !constant) {
+        const selectedItem = items?.find(
+          (item) => item.id === updatedFormData[index].itemId
+        );
+        if (selectedItem) {
+          updatedFormData[index].unitPrice = parseFloat(
+            calculateUnitPriceForNonAreaItems(
+              updatedFormData[index],
+              selectedItem,
+              index
+            )?.toString() || "0"
+          );
+          updatedFormData[index].totalAmount = parseFloat(
+            calculateUnitPriceForNonAreaItems(
+              updatedFormData[index],
+              selectedItem,
+              index
+            )?.toString() || "0"
+          );
+        }
+      }
+
+      // Find the matching pricing based on itemId and serviceId
+      const filterSellingPrice = pricings?.find(
+        (pricing) =>
+          pricing.itemId === updatedFormData[index].itemId &&
+          (pricing.serviceId === value || pricing.nonStockServiceId === value)
+      );
+
+      if (filterSellingPrice) {
+        updatedFormData[index].pricingId = filterSellingPrice.id;
+      }
+
+      // Update the form data with the new pricingId and unit price
+      setFormData(updatedFormData);
+    }
+  };
+
+  const calculateUnitPrice = (
+    formDataItem: OrderItemType,
+    selectedItem: ItemType,
+    index: number
+  ) => {
+    const { width, height, quantity, uomId, itemId, serviceId } = formDataItem;
+    const foundUom = selectedItem?.unitCategory?.uoms?.find(
+      (uom) => uom.id === uomId
+    );
+    const unitCategory = items?.find(
+      (item) => item.id === itemId.toString()
+    )?.unitCategory;
+    const filterSellingPrice = pricings?.find(
+      (pricing) => pricing.itemId === itemId && 
+      (pricing.serviceId === serviceId || pricing.nonStockServiceId === serviceId)
+    );
+
+    if (
+      filterSellingPrice &&
+      foundUom &&
+      unitCategory?.constant &&
+      width &&
+      height &&
+      quantity
+    ) {
+      const baseUnit = unitCategory.uoms.find((unit) => unit.baseUnit === true);
+      const servicePrice = filterSellingPrice.sellingPrice;
+      const convertedWidth =
+        parseFloat(width) *
+        parseFloat(foundUom.conversionRate?.toString() || "0");
+      const convertedHeight =
+        parseFloat(height) *
+        parseFloat(foundUom.conversionRate?.toString() || "0");
+
+      // Calculate unit and total amounts
+      const combination =
+        convertedWidth *
+        convertedHeight *
+        parseFloat(quantity.toString()) *
+        parseFloat(servicePrice.toString() || "0");
+
+      setFormData((prevFormData) => {
+        const updatedFormData = [...prevFormData];
+        updatedFormData[index] = {
+          ...updatedFormData[index],
+          pricingId: filterSellingPrice?.id,
+          unit:
+            convertedWidth * convertedHeight * parseFloat(quantity.toString()),
+          baseUomId: baseUnit?.id || "",
+        };
+        return updatedFormData;
+      });
+
+      const devider =
+        parseFloat(filterSellingPrice.width?.toString() || "0") *
+        parseFloat(filterSellingPrice.height?.toString() || "0");
+      return (
+        parseFloat(combination.toString()) / parseFloat(devider.toString())
+      ).toFixed(2);
+    }
+    return 0;
+  };
+
+  const calculateUnitPriceForNonAreaItems = (
+    formDataItem: OrderItemType,
+    selectedItem: ItemType,
+    index: number
+  ) => {
+    const { quantity, uomId, itemId, serviceId } = formDataItem;
+    const foundUom = selectedItem?.unitCategory?.uoms?.find(
+      (uom) => uom.id === uomId
+    );
+    const unitCategory = items?.find(
+      (item) => item.id === itemId.toString()
+    )?.unitCategory;
+    const filterSellingPrice = pricings?.find(
+      (pricing: PricingType) =>
+        pricing.itemId === itemId && 
+        (pricing.serviceId === serviceId || pricing.nonStockServiceId === serviceId)
+    );
+
+    if (filterSellingPrice) {
+      if (!unitCategory?.constant && filterSellingPrice.sellingPrice > 0) {
+        const convertedQuantity =
+          parseFloat(quantity.toString()) *
+          parseFloat(foundUom?.conversionRate?.toString() || "0");
+        const baseUnit = unitCategory?.uoms.find(
+          (unit) => unit.baseUnit === true
+        );
+
+        setFormData((prevFormData) => {
+          const updatedFormData = [...prevFormData];
+          updatedFormData[index] = {
+            ...updatedFormData[index],
+            pricingId: filterSellingPrice?.id,
+            unit: convertedQuantity,
+            baseUomId: baseUnit?.id || "",
+          };
+          return updatedFormData;
+        });
+
+        const combination =
+          convertedQuantity *
+          parseFloat(filterSellingPrice?.sellingPrice?.toString() || "0");
+        return combination.toFixed(2);
+      }
+    }
+
+    return 0;
+  };
+
+  const handleInputChanges = (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const item = formData[index];
+    if (
+      item.status !== "Edited" &&
+      item.status !== "Received" &&
+      item.status !== "Rejected"
+    ) {
+      toast.error("You cannot edit this item because it has been approved");
+      return;
+    }
+    const { name, value } = e.target;
+
+    setFormData((prevFormData) => {
+      const updatedFormData = [...prevFormData];
+      updatedFormData[index] = {
+        ...updatedFormData[index],
+        [name]: value,
+      };
+
+      const width = parseFloat(updatedFormData[index].width);
+      const height = parseFloat(updatedFormData[index].height);
+      const quantity = parseFloat(updatedFormData[index].quantity.toString());
+
+      if (!isNaN(width) && !isNaN(height) && !isNaN(quantity)) {
+        const selectedItem = items?.find(
+          (item) => item.id === updatedFormData[index].itemId
+        );
+
+        if (selectedItem) {
+          updatedFormData[index].unitPrice = parseFloat(
+            calculateUnitPrice(
+              updatedFormData[index],
+              selectedItem,
+              index
+            )?.toString() || "0"
+          );
+          updatedFormData[index].totalAmount = parseFloat(
+            calculateUnitPrice(
+              updatedFormData[index],
+              selectedItem,
+              index
+            )?.toString() || "0"
+          );
+        }
+      }
+      return updatedFormData;
+    });
+  };
+
+  const handleUnitChange = (index: number, value: string) => {
+    const item = formData[index];
+    if (
+      item.status !== "Edited" &&
+      item.status !== "Received" &&
+      item.status !== "Rejected"
+    ) {
+      toast.error("You cannot edit this item because it has been approved");
+      return;
+    }
+    setFormData((prevFormData) => {
+      const updatedFormData = [...prevFormData];
+      const selectedItem = items?.find(
+        (item) => item.id === updatedFormData[index].itemId
+      );
+      if (selectedItem) {
+        updatedFormData[index] = {
+          ...updatedFormData[index],
+          uomId: value,
+        };
+
+        const quantity = parseFloat(updatedFormData[index].quantity.toString());
+        const constant = updatedFormData[index].constant;
+
+        updatedFormData[index].unitPrice = parseFloat(
+          calculateUnitPrice(
+            updatedFormData[index],
+            selectedItem,
+            index
+          )?.toString() || "0"
+        );
+        updatedFormData[index].totalAmount = parseFloat(
+          calculateUnitPrice(
+            updatedFormData[index],
+            selectedItem,
+            index
+          )?.toString() || "0"
+        );
+
+        if (!isNaN(quantity) && !constant) {
+          const selectedItem = items?.find(
+            (item) => item.id === updatedFormData[index].itemId
+          );
+          if (selectedItem) {
+            updatedFormData[index].unitPrice = parseFloat(
+              calculateUnitPriceForNonAreaItems(
+                updatedFormData[index],
+                selectedItem,
+                index
+              )?.toString() || "0"
+            );
+            updatedFormData[index].totalAmount = parseFloat(
+              calculateUnitPriceForNonAreaItems(
+                updatedFormData[index],
+                selectedItem,
+                index
+              )?.toString() || "0"
+            );
+          }
+        }
+      }
+      return updatedFormData;
+    });
+  };
+
+  const handleQuantityChange = (index: number, value: string) => {
+    const item = formData[index];
+    if (
+      item.status !== "Edited" &&
+      item.status !== "Received" &&
+      item.status !== "Rejected"
+    ) {
+      toast.error("You cannot edit this item because it has been approved");
+      return;
+    }
+    const quantity = value || "";
+
+    setFormData((prevFormData) => {
+      const updatedFormData = [...prevFormData];
+      updatedFormData[index] = {
+        ...updatedFormData[index],
+        quantity,
+      };
+
+      const width = parseFloat(updatedFormData[index].width);
+      const height = parseFloat(updatedFormData[index].height);
+      const quantityy = parseFloat(updatedFormData[index].quantity.toString());
+      const constant = updatedFormData[index].constant;
+
+      // Ensure width, height, and quantity are valid numbers
+      if (!isNaN(width) && !isNaN(height) && parseFloat(quantity) > 0) {
+        const selectedItem = items?.find(
+          (item) => item.id === updatedFormData[index].itemId
+        );
+
+        // Pass formDataItem and selectedItem to calculateUnitPrice
+        if (selectedItem) {
+          updatedFormData[index].unitPrice = parseFloat(
+            calculateUnitPrice(
+              updatedFormData[index],
+              selectedItem,
+              index
+            )?.toString() || "0"
+          );
+          updatedFormData[index].totalAmount = parseFloat(
+            calculateUnitPrice(
+              updatedFormData[index],
+              selectedItem,
+              index
+            )?.toString() || "0"
+          );
+        }
+      }
+
+      if (!isNaN(quantityy) && !constant) {
+        const selectedItem = items?.find(
+          (item) => item.id === updatedFormData[index].itemId
+        );
+        if (selectedItem) {
+          updatedFormData[index].unitPrice = parseFloat(
+            calculateUnitPriceForNonAreaItems(
+              updatedFormData[index],
+              selectedItem,
+              index
+            )?.toString() || "0"
+          );
+          updatedFormData[index].totalAmount = parseFloat(
+            calculateUnitPriceForNonAreaItems(
+              updatedFormData[index],
+              selectedItem,
+              index
+            )?.toString() || "0"
+          );
+        }
+      }
+
+      return updatedFormData;
+    });
+  };
+
+  const updatedFormData = useMemo(() => {
+    return formData.map((item) => ({
+      ...item,
+      totalAmount: (
+        parseFloat(item.quantity?.toString() || "0") *
+        parseFloat(item.unitPrice?.toString() || "0")
+      ).toFixed(2),
+    }));
+  }, [formData]);
+
+  const handleCancel = (index: number) => {
+    const item = formData[index];
+    if (
+      item.status !== "Edited" &&
+      item.status !== "Received" &&
+      item.status !== "Rejected"
+    ) {
+      toast.error("You cannot cancel this item because it has been approved");
+      return;
+    }
+    const updatedFormData = [...formData];
+    const filteredData = updatedFormData.filter((_, i) => i !== index);
+    setFormData(filteredData);
+    const updatedCommission = [...commissionTransactions];
+    const filteredCommission = updatedCommission.filter((_, i) => i !== index);
+    setCommissionTransactions(filteredCommission);
+  };
+
+  const handleCancelPayment = (index: number) => {
+    if (user?.roles !== "ADMIN" && user?.roles !== "FINANCE") {
+      toast.error("You are not authorized to perform this action");
+      return;
+    }
+    const updatedData = [...paymentTransactions];
+    const filteredData = updatedData.filter((_, i) => i !== index);
+    setPaymentTransactions(filteredData);
+  };
+
+  useEffect(() => {
+    const totalAmount = formData.reduce((acc, c) => {
+      const totalPrice = parseFloat(c.totalAmount?.toString() || "0");
+      return acc + totalPrice;
+    }, 0);
+
+    const totalQuantity = formData.reduce((acc, c) => {
+      return acc + parseFloat(c.quantity?.toString() || "0");
+    }, 0);
+
+    const tax = totalAmount * 0.15;
+    const grandTotal = totalAmount + tax;
+    let grandTotalWithDiscount = grandTotal;
+
+    if (
+      parseFloat(userInputDiscount) > 0 &&
+      parseFloat(userInputDiscount) <= grandTotal
+    ) {
+      grandTotalWithDiscount = grandTotal - parseFloat(userInputDiscount);
+    }
+
+    setOrderInfo((prevOrderInfo) => ({
+      ...prevOrderInfo,
+      totalAmount: parseFloat(totalAmount.toFixed(2)),
+      totalQuantity: parseFloat(totalQuantity.toFixed(2)),
+      tax: parseFloat(tax.toFixed(2)),
+      grandTotal: parseFloat(grandTotalWithDiscount.toFixed(2)),
+    }));
+
+    if (commissionTransactions.length > 0) {
+      const totalCommission = commissionTransactions.reduce((acc, c) => {
+        return acc + parseFloat(c.amount?.toString() || "0");
+      }, 0);
+      setTotalCommission(parseFloat(totalCommission.toFixed(2)));
+    }
+
+    const combination = formData.map((data, index) => {
+      const customer = customers?.find(
+        (customer) => customer.id === orderInfo.customerId
+      );
+      const item = items?.find((item) => item.id === data.itemId);
+      if (!customer || !item) return "";
+      
+      // Get the first file path from filePaths data to use as prefix
+      const filePathPrefix = filePaths?.filePaths?.[0]?.filePath || "";
+      const fileType = filePaths?.filePaths?.[0]?.fileType || "";
+      const sequenceNumber = String(index + 1).padStart(2, '0'); // Add sequence number with leading zero
+      const fileName = `${order?.series}-${sequenceNumber}-${customer.fullName}-${item.name}-${data.width}x${data.height}`;
+      
+      // Combine file path prefix with file name
+      return filePathPrefix ? `${filePathPrefix}\\${fileName}${fileType}` : fileName;
+    });
+
+    setFileName(combination);
+  }, [
+    formData,
+    orderInfo.customerId,
+    items,
+    customers,
+    commissionTransactions,
+    userInputDiscount,
+    filePaths,
+    order
+  ]);
+
+  const handleUserInputDiscount = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (user?.roles !== "ADMIN") {
+      toast.error("You are not authorized to perform this action");
+      return;
+    }
+    const { value } = e.target;
+    const discount = parseFloat(value) || "";
+    setUserInputDiscount(discount.toString());
+  };
+
+  const handleDiscountChange = (
+    index: number,
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (user?.roles !== "ADMIN") {
+      toast.error("You are not authorized to perform this action");
+      return;
+    }
+    const { checked } = e.target;
+    setFormData((prevFormData) => {
+      const updatedData = [...prevFormData];
+      updatedData[index] = {
+        ...updatedData[index],
+        isDiscounted: checked,
+      };
+
+      // Calculate discount if the checkbox is checked
+      if (checked) {
+        const unit = updatedData[index].unit;
+        const selectedItem = items?.find(
+          (item) => item.id === updatedFormData[index].itemId
+        );
+        const discountItem = discounts?.filter(
+          (discount) => discount.items.id === selectedItem?.id
+        );
+        // Find the appropriate discount data based on the unit's range
+
+        if (discountItem) {
+          const discountData = discountItem.find((discount) => {
+            const minQuantity = parseInt(discount.unit.toString());
+            const nextDiscount = discounts?.find(
+              (d) => d.unit > parseFloat(minQuantity.toString())
+            );
+            const maxQuantity = nextDiscount ? nextDiscount.unit : Infinity;
+            return unit >= minQuantity && unit < maxQuantity;
+          });
+
+          // If discount data is found, apply the discount
+          if (discountData) {
+            updatedData[index].level = parseFloat(
+              discountData.level.toString()
+            );
+            const discountPercentage =
+              parseFloat(discountData.percentage.toString()) / 100;
+            updatedData[index].discount =
+              discountPercentage *
+              parseFloat(updatedData[index].unitPrice.toString());
+            updatedData[index].totalAmount =
+              updatedData[index].unitPrice - updatedData[index].discount;
+          } else {
+            // If no discount data is found, reset level and discount
+            updatedData[index].level = 0;
+            updatedData[index].discount = 0;
+            updatedData[index].totalAmount = updatedData[index].unitPrice;
+          }
+        }
+      } else {
+        // If checkbox is not checked, reset level, discount, and total
+        updatedData[index].level = 0;
+        updatedData[index].discount = 0;
+        updatedData[index].totalAmount = updatedData[index].unitPrice;
+      }
+
+      return updatedData;
+    });
+  };
+
+  const handleCollapseDiscount = () => {
+    setCollapseDiscount((prev) => !prev);
+  };
+
+  const options = useMemo(() => {
+    const selectedItemIds = new Set(
+      (formData || []).map((row) => row.itemId).filter((id) => Boolean(id))
+    );
+    return (
+      items
+        ?.filter((item) => item.can_be_sold || selectedItemIds.has(item.id))
+        .map((item) => ({ value: item.id, label: item.name })) || []
+    );
+  }, [items, formData]);
+
+  const servicesOptions = useMemo(
+    () => {
+      const stockServices = services?.map((service) => ({
+        value: service.id,
+        label: service.name,
+      })) || [];
+      
+      const nonStockServicesList = nonStockServices?.map((service: { id: string; name: string }) => ({
+        value: service.id,
+        label: service.name,
+      })) || [];
+      
+      return [...stockServices, ...nonStockServicesList];
+    },
+    [services, nonStockServices]
+  );
+
+  const [showPopover, setShowPopover] = useState<number | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, isAbove: false });
+  const triggerRefs = useRef<(HTMLAnchorElement | null)[]>([]);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const clickHandler = ({ target }: MouseEvent) => {
+      if (!dropdownRef.current) return;
+      
+      // Check if click is on any trigger button
+      const isOnTrigger = triggerRefs.current.some(ref => ref?.contains(target as Node));
+      
+      if (
+        !dropdownOpen ||
+        dropdownRef.current.contains(target as Node) ||
+        isOnTrigger
+      )
+        return;
+      setDropdownOpen(false);
+      setShowPopover(null);
+    };
+    document.addEventListener("click", clickHandler);
+    return () => document.removeEventListener("click", clickHandler);
+  });
+
+  // close if the esc key is pressed
+  useEffect(() => {
+    const keyHandler = ({ keyCode }: KeyboardEvent) => {
+      if (!dropdownOpen || keyCode !== 27) return;
+      setDropdownOpen(false);
+      setShowPopover(null);
+    };
+    document.addEventListener("keydown", keyHandler);
+    return () => document.removeEventListener("keydown", keyHandler);
+  });
+
+  const handleAction = (index: number) => {
+    if (showPopover === index) {
+      setShowPopover(null);
+      setDropdownOpen(false);
+    } else {
+      setShowPopover(index);
+      setDropdownOpen(true);
+      
+      // Calculate dropdown position
+      const currentTriggerRef = triggerRefs.current[index];
+      if (currentTriggerRef) {
+        const rect = currentTriggerRef.getBoundingClientRect();
+        
+        console.log('Button rect:', rect);
+        console.log('Button index:', index);
+        console.log('Button position - top:', rect.top, 'bottom:', rect.bottom, 'left:', rect.left);
+        
+        // Use the actual button position relative to viewport
+        let top = rect.bottom + 8; // 8px gap from button
+        let left = rect.left + (rect.width / 2); // Center horizontally on the button
+        
+        console.log('Calculated dropdown position - top:', top, 'left:', left);
+        
+        // Ensure dropdown doesn't go off-screen
+        const dropdownWidth = 200; // minWidth from the dropdown
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        
+        // Adjust horizontal position if it would go off-screen
+        if (left + dropdownWidth / 2 > viewportWidth) {
+          left = viewportWidth - dropdownWidth / 2 - 10;
+        } else if (left - dropdownWidth / 2 < 0) {
+          left = dropdownWidth / 2 + 10;
+        }
+        
+        // Adjust vertical position if it would go off-screen
+        const dropdownHeight = 120; // Approximate height of dropdown
+        let isAbove = false;
+        if (top + dropdownHeight > viewportHeight) {
+          // Position above the button instead
+          top = rect.top - dropdownHeight - 8;
+          isAbove = true;
+        }
+        
+        console.log('Final dropdown position - top:', top, 'left:', left, 'isAbove:', isAbove);
+        
+        setDropdownPosition({ top, left, isAbove });
+      }
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Validate customer
+    if (!orderInfo.customerId) {
+      toast.error("Please select a customer before submitting the order.");
+      return;
+    }
+
+    // Prepare order items
+    const ordeItemData = formData.map((data) => {
+      // Check if the service is a non-stock service
+      const isNonStockService = nonStockServices?.some(service => service.id === data.serviceId);
+      
+      return {
+        itemId: data.itemId,
+        ...(isNonStockService 
+          ? { nonStockServiceId: data.serviceId, isNonStockService: true }
+          : { serviceId: data.serviceId, isNonStockService: false }
+        ),
+        width: data.width,
+        height: data.height,
+        discount: data.discount,
+        level: data.level,
+        totalAmount: data.totalAmount,
+        adminApproval: data.adminApproval,
+        uomId: data.uomId,
+        quantity: data.quantity,
+        unitPrice: data.unitPrice,
+        description: data.description,
+        isDiscounted: data.isDiscounted,
+        status: data.status,
+        id: data.id,
+        orderId: order?.id,
+        unit: data.unit,
+        pricingId: data.pricingId,
+        baseUomId: data.baseUomId,
+      };
+    });
+
+    // Prepare payment data
+    const paymentTermStatus = remainingAmount <= 0
+      ? "Paid"
+      : (totaTransaction > 0 ? "Partially Paid" : "Pending");
+
+    const paymentData = {
+      id: order?.paymentTerm?.[0]?.id,
+      orderId: order?.id,
+      totalAmount: totaTransaction,
+      remainingAmount: remainingAmount,
+      status: paymentTermStatus,
+      forcePayment: forcePayment,
+      transactions: paymentTransactions.map((transaction) => ({
+        ...transaction,
+        paymentTermId: order?.paymentTerm?.[0]?.id,
+        date: new Date(transaction.date),
+        status:
+          (transaction.status && transaction.status.toLowerCase() === "paid")
+            ? "Paid"
+            : "Pending",
+      })),
+    };
+
+    // Validate payment
+    if (paymentData.totalAmount > orderInfo.grandTotal) {
+      toast.error("Total payment amount cannot exceed the grand total.");
+      return;
+    }
+
+    // Prepare commission data
+    const commissionData = {
+      salesPartnerId: salesPartnerSearch.id,
+      totalAmount: totalCommission,
+      paidAmount: order?.commission?.[0]?.paidAmount || 0,
+      id: order?.commission?.[0]?.id,
+      orderId: order?.id,
+      transactions: commissionTransactions.map((transaction) => ({
+        ...transaction,
+        paymentMethod: transaction.paymentMethod ?? "cash",
+        description: transaction.description,
+        amount: transaction.amount,
+        reference: transaction.reference,
+        status:
+          (transaction.status && transaction.status.toLowerCase() === "paid")
+            ? "Paid"
+            : "Pending",
+        date: new Date(transaction.date),
+      })),
+    };
+
+    // Commission validations
+    if (commissionData.totalAmount > 0) {
+      if (!salesPartnerSearch.id) {
+        toast.error(
+          "A sales partner must be selected if there is a commission."
+        );
+        return;
+      }
+      if (commissionData.transactions.some((t) => t.amount === 0)) {
+        toast.error("All commission transactions must have a non-zero amount.");
+        return;
+      }
+      if (commissionData.transactions.some((t) => !t.paymentMethod)) {
+        toast.error("All commission transactions must have a payment method.");
+        return;
+      }
+      if (commissionData.transactions.some((t) => !t.reference)) {
+        toast.error(
+          "All commission transactions must have a reference number."
+        );
+        return;
+      }
+    }
+
+    // Compose final data
+    const data = {
+      ...orderInfo,
+      fileNames: fileName,
+      orderItems: ordeItemData,
+      paymentTerm: [paymentData],
+      commission: commissionData.totalAmount > 0 ? [commissionData] : undefined,
+      id: order?.id,
+    };
+
+    // Submit
+    try {
+      await updateOrder(data).unwrap();
+      toast.success("Order updated successfully.");
+    } catch (error) {
+      const fetchError = error as FetchBaseQueryError;
+      const errorMessage = handleApiError(fetchError, "Order update failed");
+      toast.error(errorMessage);
+    }
+  };
+
+  const componentRef = useRef(null);
+  const handlePrint = useReactToPrint({
+    content: () => componentRef.current,
+    documentTitle: "Order document",
+    onAfterPrint: () => toast.success("Printing completed successfully"),
+    removeAfterPrint: true,
+  });
+
+  // Print-specific table component
+  const PrintTable = () => (
+    <div className="print-only">
+      <div className="max-w-full overflow-x-auto">
+        <div className="max-w-full px-4">
+          <table className="w-full table-auto">
+            <thead>
+              <tr className="bg-gray-2 text-left dark:bg-meta-4">
+                <th className="py-4 px-4 font-medium text-black dark:text-white">
+                  No
+                </th>
+                <th className="min-w-[200px] py-4 px-4 font-medium text-black dark:text-white">
+                  Item
+                </th>
+                <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                  Service
+                </th>
+                <th className="min-w-[100px] py-4 px-4 font-medium text-black dark:text-white">
+                  Qty
+                </th>
+                <th className="min-w-[100px] py-4 px-4 font-medium text-black dark:text-white">
+                  Size
+                </th>
+                <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
+                  Unit Price
+                </th>
+                <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
+                  Total
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {formData && formData.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="text-center text-black dark:text-white">
+                    No data found
+                  </td>
+                </tr>
+              )}
+              {formData &&
+                updatedFormData.map((data, index) => (
+                  <tr key={index}>
+                    <td className="border-b text-graydark dark:text-white border-stroke py-2 px-4 dark:border-strokedark">
+                      {index + 1}
+                    </td>
+                    <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                      {items?.find((item) => item.id === data.itemId)?.name || ""}
+                    </td>
+                    <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                      {services?.find((service) => service.id === data.serviceId)?.name || 
+                       nonStockServices?.find((service) => service.id === data.serviceId)?.name || 
+                       ""}
+                    </td>
+                    <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                      {data.quantity}
+                    </td>
+                    <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                      {data.width && data.height ? `${data.width} x ${data.height}` : "-"}
+                    </td>
+                    <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                      {Number(data.unitPrice || 0).toFixed(2)}
+                    </td>
+                    <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                      {Number(data.totalAmount || 0).toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (isError) return <ErroPage error={error.toString()} />;
+  if (
+    isItemsLoading ||
+    isCustomersLoading ||
+    isLoading ||
+    isServicesLoading ||
+    isNonStockServicesLoading ||
+    isPricingsLoading ||
+    isDiscountsLoading ||
+    isFilePathsLoading
+  )
+    return <Loader />;
+
+  console.log(filePaths?.filePaths);
+  
+
+  return (
+    <>
+      <Breadcrumb pageName="Order details" />
+      <div className="flex justify-end mb-4">
+        <button
+          type="button"
+          className="flex items-center justify-center rounded border-[1.5px] border-stroke bg-white px-2 py-1 font-medium text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600 hover:text-primary dark:hover:text-primary transition-colors"
+          onClick={handlePrint}
+        >
+          <FaPrint className="mr-2 text-xl text-primary" />
+          Print Order
+        </button>
+      </div>
+      <section className="bg-white dark:bg-boxdark" ref={componentRef}>
+        <form onSubmit={handleSubmit}>
+          <div>
+            <div className="grid sm:grid-cols-3 sm:gap-6 mb-4 p-4 border border-stroke dark:border-strokedark rounded-lg">
+              <div className="w-full">
+                <label
+                  htmlFor="series"
+                  className="mb-3 block text-black dark:text-white"
+                >
+                  Series
+                </label>
+                <input
+                  type="text"
+                  name="series"
+                  value={orderInfo.series}
+                  readOnly
+                  id="series"
+                  className="w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                />
+              </div>
+              <div className="">
+                <label
+                  htmlFor="orderDate"
+                  className="mb-3 block text-black dark:text-white"
+                >
+                  Order Date
+                </label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    name="orderDate"
+                    onChange={handleDateChange}
+                    value={orderInfo.orderDate}
+                    required
+                    id="orderDate"
+                    placeholder="Select a date"
+                    className="custom-input-date custom-input-date-1 w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                  />
+                </div>
+              </div>
+              <div className="">
+                <label
+                  htmlFor="deliveryDate"
+                  className="mb-3 block text-black dark:text-white"
+                >
+                  Delivery Date
+                </label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    name="deliveryDate"
+                    onChange={handleDateChange}
+                    value={orderInfo.deliveryDate}
+                    required
+                    id="deliveryDate"
+                    placeholder="Select a date"
+                    className="custom-input-date custom-input-date-1 w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                  />
+                </div>
+              </div>
+              <div className="w-full relative">
+                <CustomerSearchInput
+                  handleCustomerInfo={handleCustomerSearch}
+                  value={customerSearch.fullName}
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="orderSource"
+                  className="mb-3 block text-black dark:text-white"
+                >
+                  Order source
+                </label>
+                <select
+                  defaultValue="telegram"
+                  name="orderSource"
+                  onChange={handleOrderInfo}
+                  value={orderInfo.orderSource}
+                  id="orderSource"
+                  required
+                  className="w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                >
+                  <option value="" className="text-body dark:text-bodydark bg-white dark:bg-form-input">Select order source</option>
+                  <option value="telegram" className="text-body dark:text-bodydark bg-white dark:bg-form-input">Telegram</option>
+                  <option value="phone" className="text-body dark:text-bodydark bg-white dark:bg-form-input">Phone</option>
+                  <option value="In person" className="text-body dark:text-bodydark bg-white dark:bg-form-input">In person</option>
+                  <option value="whatsapp" className="text-body dark:text-bodydark bg-white dark:bg-form-input">Whatsapp</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <button
+                type="button"
+                className="text-black dark:text-white w-full py-2 px-4 border-t border-b border-stroke dark:border-strokedark mb-4 font-semibold flex items-center gap-4"
+              >
+                Orders List{" "}
+              </button>
+              
+              {/* Print-only table */}
+              <PrintTable />
+              
+              {/* Screen-only content */}
+              <div className="screen-only">
+                <Tabs
+                  tabs={tabs}
+                  activeTabId={activeTabId}
+                  onTabChange={handleTabChange}
+                />
+                {activeTabId === "general" && (
+                  <div className="rounded-sm border border-stroke bg-white dark:border-strokedark dark:bg-boxdark">
+                    <div className="table-container max-w-full overflow-x-auto">
+                      <div className="max-w-full px-4">
+                        <table className="w-full table-auto">
+                          <thead>
+                            <tr className="bg-gray-2 text-left dark:bg-meta-4">
+                              <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                No
+                              </th>
+                              <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                                Item
+                              </th>
+                              <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                                Service
+                              </th>
+                              <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                UOM
+                              </th>
+                              <th className="min-w-[100px] py-4 px-4 font-medium text-black dark:text-white">
+                                Quantity
+                              </th>
+                              <th className="min-w-[100px] py-4 px-4 font-medium text-black dark:text-white">
+                                Width
+                              </th>
+                              <th className="min-w-[100px] py-4 px-4 font-medium text-black dark:text-white">
+                                Height
+                              </th>
+                              <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                                U.Price
+                              </th>
+                              <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                                Status
+                              </th>
+                              <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                {/* Action */}
+                                <span className="font-semibold flex justify-center items-center">
+                                  <CiSettings className="text-xl font-bold" />
+                                </span>
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {formData && formData.length === 0 && (
+                              <tr>
+                                <td colSpan={7} className="text-center text-black dark:text-white">
+                                  No data found
+                                </td>
+                              </tr>
+                            )}
+                            {formData &&
+                              updatedFormData.map((data, index) => (
+                                <tr key={index}>
+                                  <td className="border-b text-graydark dark:text-white border-stroke py-2 px-4 dark:border-strokedark">
+                                    {index + 1}
+                                  </td>
+                                  <td className="min-w-[220px] relative border border-stroke dark:border-strokedark">
+                                    <SelectOptions
+                                      options={options}
+                                      defaultOptionText=""
+                                      selectedOption={formData[index].itemId}
+                                      onOptionChange={(value) =>
+                                        handleItemChange(index, value)
+                                      }
+                                      containerMargin=""
+                                      labelMargin=""
+                                      border=""
+                                      title="Select item"
+                                    />
+                                  </td>
+                                  <td className="min-w-[220px] relative border border-stroke dark:border-strokedark">
+                                    <SelectOptions
+                                      options={servicesOptions}
+                                      defaultOptionText=""
+                                      selectedOption={formData[index].serviceId || ''}
+                                      onOptionChange={(value) =>
+                                        handleServiceChange(index, value)
+                                      }
+                                      containerMargin=""
+                                      labelMargin=""
+                                      border=""
+                                      title="Select services"
+                                    />
+                                  </td>
+                                  <td className="min-w-[220px] relative border border-stroke dark:border-strokedark">
+                                    <SelectOptions
+                                      options={
+                                        formData[index]?.uomsOptions?.map(
+                                          (uom) => ({
+                                            value: uom.id,
+                                            label: uom.abbreviation,
+                                          })
+                                        ) || []
+                                      }
+                                      defaultOptionText=""
+                                      selectedOption={formData[index].uomId}
+                                      onOptionChange={(value) =>
+                                        handleUnitChange(index, value)
+                                      }
+                                      containerMargin=""
+                                      labelMargin=""
+                                      border=""
+                                      title="Select units"
+                                    />
+                                  </td>
+                                  <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                    <input
+                                      title="Quantity of the product"
+                                      type="number"
+                                      name="quantity"
+                                      value={data.quantity}
+                                      min={1}
+                                      required
+                                      onChange={(e) =>
+                                        handleQuantityChange(
+                                          index,
+                                          e.target.value
+                                        )
+                                      }
+                                      className="w-full rounded  bg-transparent px-2 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                                    />
+                                  </td>
+                                  <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                    <input
+                                      title="width"
+                                      type="number"
+                                      name="width"
+                                      id="width"
+                                      onChange={(e) =>
+                                        handleInputChanges(index, e)
+                                      }
+                                      value={data.width}
+                                      className="w-full rounded bg-transparent px-2 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                                      required
+                                      min={0}
+                                      step={"any"}
+                                      disabled={!data.constant}
+                                    />
+                                  </td>
+                                  <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                    <input
+                                      title="height"
+                                      type="number"
+                                      name="height"
+                                      id="height"
+                                      onChange={(e) =>
+                                        handleInputChanges(index, e)
+                                      }
+                                      value={data.height}
+                                      className="w-full rounded bg-transparent px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                                      required
+                                      min={0}
+                                      step={"any"}
+                                      disabled={!data.constant}
+                                    />
+                                  </td>
+                                  <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                    {Number(data.unitPrice || 0).toFixed(2)}
+                                  </td>
+                                  <td className="px-4 py-2 border border-stroke dark:border-strokedark">
+                                    {order && (
+                                      <div className="flex items-center justify-center w-full relative">
+                                        {data.status === "Received" && (
+                                          <span className="bg-primary text-white text-xs font-medium  px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">
+                                            {data.status}
+                                          </span>
+                                        )}
+                                        {data.status === "Edited" && (
+                                          <span className="bg-primary/50 text-white text-xs font-medium px-2.5 py-0.5 rounded">
+                                            {data.status}
+                                          </span>
+                                        )}
+                                        {data.status === "Rejected" && (
+                                          <span className="bg-danger text-white text-xs font-medium px-2.5 py-0.5 rounded dark:danger dark:text-white">
+                                            {data.status}
+                                          </span>
+                                        )}
+                                        {data.status === "Void" && (
+                                          <span className="bg-danger text-white text-xs font-medium px-2.5 py-0.5 rounded dark:danger dark:text-white">
+                                            {data.status}
+                                          </span>
+                                        )}
+                                        {data.status === "Approved" && (
+                                          <span className="bg-success text-white text-xs font-medium px-2.5 py-0.5 rounded dark:bg-success dark:text-white">
+                                            {data.status}
+                                          </span>
+                                        )}
+                                        {data.status === "Printed" && (
+                                          <span className="text-white bg-gradient-to-br from-danger to-warning hover:bg-gradient-to-bl focus:ring-4 focus:outline-none focus:ring-pink-200 dark:focus:ring-pink-800 text-xs font-medium px-2.5 py-0.5 rounded">
+                                            {data.status}
+                                          </span>
+                                        )}
+                                        {data.status === "Paid" && (
+                                          <span className="text-white bg-blend-hue hover:bg-sky-600 focus:ring-4 focus:outline-none focus:ring-sky-100 dark:bg-sky-400 dark:hover:bg-sky-500 dark:focus:ring-sky-600 text-xs font-medium px-2.5 py-0.5 rounded">
+                                            {data.status}
+                                          </span>
+                                        )}
+                                        {data.status === "Delivered" && (
+                                          <span className="text-white bg-meta-5 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-meta-5 dark:hover:bg-blue-700 dark:focus:ring-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
+                                            {data.status}
+                                          </span>
+                                        )}
+                                        {data.status === "Completed" && (
+                                          <span className="text-white bg-meta-3 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-meta-3 dark:hover:bg-blue-700 dark:focus:ring-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
+                                            {data.status}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="px-6 py-4 relative">
+                                    <Link
+                                      to="#"
+                                      onClick={(event) => {
+                                        handleAction(index);
+                                        event.stopPropagation();
+                                      }}
+                                      ref={(el) => {
+                                        triggerRefs.current[index] = el;
+                                      }}
+                                      className="flex items-center gap-4"
+                                    >
+                                      <CiMenuKebab />
+                                    </Link>
+
+                                    {/* <!-- Dropdown Start --> */}
+                                    {showPopover === index && dropdownOpen && createPortal(
+                                      <div
+                                        ref={dropdownRef}
+                                        onFocus={() => setDropdownOpen(true)}
+                                        onBlur={() => setDropdownOpen(false)}
+                                        className="fixed z-[9999] flex w-47.5 flex-col rounded-lg border border-stroke bg-white shadow-lg dark:border-strokedark dark:bg-boxdark animate-in fade-in-0 zoom-in-95 duration-200"
+                                        style={{
+                                          top: `${dropdownPosition.top}px`,
+                                          left: `${dropdownPosition.left}px`,
+                                          minWidth: '200px',
+                                          transform: 'translateX(-50%)'
+                                        }}
+                                      >
+                                        {/* Visual connection triangle */}
+                                        <div 
+                                          className={`absolute left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 ${
+                                            dropdownPosition.isAbove 
+                                              ? 'border-t-4 border-transparent border-t-stroke dark:border-t-strokedark -bottom-2' 
+                                              : 'border-b-4 border-transparent border-b-stroke dark:border-b-strokedark -top-2'
+                                          }`}
+                                          style={{ marginLeft: '-8px' }}
+                                        ></div>
+                                        <ul className="flex flex-col p-2 dark:border-strokedark">
+                                          {/* Row indicator */}
+                                          <li className="px-3 py-1 text-xs text-gray-500 dark:text-gray-400 border-b border-stroke dark:border-strokedark mb-1">
+                                            Row {index + 1} - {items?.find((item) => item.id === formData[index]?.itemId)?.name || 'Item'}
+                                          </li>
+                                          <li>
+                                            <Link
+                                              to={`/dashboard/notifications/${id}`}
+                                              className="flex items-center gap-3 text-sm font-medium px-3 py-2 rounded-md duration-300 ease-in-out hover:bg-gray-100 dark:hover:bg-meta-4 hover:text-primary lg:text-base"
+                                            >
+                                              <BsTicketDetailed className="text-lg" />
+                                              Details
+                                            </Link>
+                                          </li>
+                                          <li>
+                                            <button
+                                              onClick={() => handleCancel(index)}
+                                              type="button"
+                                              className="flex items-center gap-3 text-sm font-medium px-3 py-2 rounded-md duration-300 ease-in-out hover:bg-gray-100 dark:hover:bg-meta-4 hover:text-danger lg:text-base w-full text-left"
+                                            >
+                                              <MdDelete className="text-lg" />
+                                              Delete
+                                            </button>
+                                          </li>
+                                        </ul>
+                                      </div>,
+                                      document.body
+                                    )}
+                                    {/* <!-- Dropdown End --> */}
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                    <div className="p-4 flex items-center justify-between">
+                      <button
+                        onClick={handleAddRow}
+                        type="button"
+                        className="flex items-center justify-center rounded border-[1.5px] border-stroke bg-transparent px-2 py-1 font-medium text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600 hover:text-primary dark:hover:text-primary transition-colors"
+                      >
+                        Add row
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+              {activeTabId === "payment-terms" && (
+                <div
+                  className={`${
+                    user?.roles !== "ADMIN" && user?.roles !== "FINANCE"
+                      ? "hidden"
+                      : ""
+                  }`}
+                >
+                  {/* transactions */}
+
+                  <div className="max-w-full overflow-x-auto p-4">
+                    <div className="w-full flex items-center mb-4">
+                      <div className="relative items-center text-black dark:text-white w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary">
+                        <label
+                          htmlFor="forcePayment"
+                          className="flex cursor-pointer select-none items-center"
+                        >
+                          <div className="relative">
+                            <input
+                              title="Force Payment"
+                              type="checkbox"
+                              id="forcePayment"
+                              className="sr-only"
+                              checked={forcePayment}
+                              onChange={handleChangeForcePayment}
+                            />
+                            <div
+                              className={`mr-4 flex h-5 w-5 items-center justify-center rounded border border-graydark ${
+                                forcePayment === true
+                                  ? "border-primary bg-gray dark:bg-transparent"
+                                  : "border-gray dark:border-strokedark bg-transparent"
+                              }`}
+                            >
+                              <span
+                                className={`h-2.5 w-2.5 rounded-sm ${
+                                  forcePayment === true
+                                    ? "bg-primary"
+                                    : "bg-transparent"
+                                }`}
+                              ></span>
+                            </div>
+                          </div>
+                        </label>
+                        <span className="absolute left-12 top-1.5">
+                          Force payment
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between p-4">
+                      <strong className="text-graydark dark:text-white">Payment Totals</strong>
+                      <div className="text-graydark dark:text-white">
+                        <p className="flex gap-4 justify-between">
+                          <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                            Grand total :
+                          </span>
+                          <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                            {orderInfo.grandTotal.toLocaleString()}
+                          </span>
+                        </p>
+                        <p className="flex gap-4 justify-between">
+                          <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                            Total payment :
+                          </span>
+                          <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                            {totaTransaction.toLocaleString()}
+                          </span>
+                        </p>
+                        <p className="flex gap-4 justify-between">
+                          <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                            Remaining amount :
+                          </span>
+                          <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                            {remainingAmount.toLocaleString()}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                    <table className="w-full table-auto">
+                      <thead>
+                        <tr className="bg-gray-2 text-left dark:bg-meta-4">
+                          <th className="py-2 px-4 font-medium text-black dark:text-white">
+                            No
+                          </th>
+                          <th className="min-w-[150px] p-4 font-medium text-black dark:text-white">
+                            Date
+                          </th>
+                          <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                            Payment method
+                          </th>
+                          <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                            Description
+                          </th>
+                          <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                            Amount
+                          </th>
+                          <th className="py-4 px-4 font-medium text-black dark:text-white">
+                            Reference
+                          </th>
+                          <th className="py-4 px-4 font-medium text-black dark:text-white">
+                            Status
+                          </th>
+                          <th className="py-4 px-4 font-medium text-black dark:text-white">
+                            {/* Action */}
+                            <span className="font-semibold flex justify-center items-center">
+                              <CiSettings className="text-xl font-bold" />
+                            </span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paymentTransactions &&
+                          paymentTransactions.length === 0 && (
+                            <tr>
+                              <td colSpan={7} className="text-center text-black dark:text-white">
+                                No data found
+                              </td>
+                            </tr>
+                          )}
+                        {paymentTransactions &&
+                          paymentTransactions.map((data, index) => (
+                            <tr key={index}>
+                              <td className="py-2 px-4 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                {index + 1}
+                              </td>
+                              <td className="py-2 px-4 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                {data.date}
+                              </td>
+
+                              <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                <label
+                                  htmlFor={`${data.paymentMethod}s-${index}`}
+                                  className="sr-only peer"
+                                >
+                                  Select an option
+                                </label>
+                                <select
+                                  title="paymentMethod"
+                                  onChange={(e) =>
+                                    handlePaymentMethod(index, e)
+                                  }
+                                  name="paymentMethod"
+                                  value={data.paymentMethod}
+                                  className="w-full rounded bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                                >
+                                  <option value="cash" className="text-body dark:text-bodydark bg-white dark:bg-form-input">Cash</option>
+                                  <option value="bank-transfer" className="text-body dark:text-bodydark bg-white dark:bg-form-input">
+                                    Bank Transfer
+                                  </option>
+                                  <option value="mobile-banking" className="text-body dark:text-bodydark bg-white dark:bg-form-input">
+                                    Mobile Banking
+                                  </option>
+                                  <option value="check" className="text-body dark:text-bodydark bg-white dark:bg-form-input">Check</option>
+                                </select>
+                              </td>
+
+                              <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                <label
+                                  htmlFor={`${data.description}-${index}`}
+                                  className="sr-only peer"
+                                >
+                                  Description
+                                </label>
+                                <input
+                                  type="text"
+                                  name="description"
+                                  value={data.description}
+                                  title="description"
+                                  className="w-full rounded bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                                  onChange={(e) => handleFormChange(index, e)}
+                                />
+                              </td>
+                              <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                <label
+                                  htmlFor={`${data.amount}-${index}`}
+                                  className="sr-only peer"
+                                >
+                                  Payment amount
+                                </label>
+                                <input
+                                  type="number"
+                                  name="amount"
+                                  value={data.amount}
+                                  title="amount"
+                                  className="w-full rounded bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                                  onChange={(e) => handleFormChange(index, e)}
+                                />
+                              </td>
+                              <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                <label
+                                  htmlFor={`${data.reference}-${index}`}
+                                  className="sr-only peer"
+                                >
+                                  Reference
+                                </label>
+                                <input
+                                  type="text"
+                                  name="reference"
+                                  value={data.reference}
+                                  title="reference"
+                                  className="w-full rounded bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                                  onChange={(e) => handleFormChange(index, e)}
+                                />
+                              </td>
+                              <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                <span
+                                  className={`${
+                                    data?.status === "paid"
+                                      ? "bg-success/10 text-success/80 font-medium me-2 px-2.5 py-0.5 rounded dark:bg-success/90 dark:text-success/30"
+                                      : "bg-primary/10 text-primary/80 font-medium me-2 px-2.5 py-0.5 rounded dark:bg-primary/90 dark:text-primary/30"
+                                  }`}
+                                >
+                                  {data?.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                <button
+                                  onClick={() => handleCancelPayment(index)}
+                                  title="action"
+                                  type="button"
+                                  className="text-black dark:text-white font-medium rounded-lg text-sm px-5 py-2.5 text-center"
+                                >
+                                  <IoMdClose />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="p-4 flex items-center justify-between">
+                    <button
+                      onClick={handleAddPaymentRow}
+                      type="button"
+                      className="flex items-center justify-center rounded border-[1.5px] border-stroke bg-transparent px-2 py-1 font-medium text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600 hover:text-primary dark:hover:text-primary transition-colors"
+                    >
+                      Add row
+                    </button>
+                    <button
+                      type="button"
+                      className="flex items-center justify-center rounded border-[1.5px] border-stroke bg-transparent px-2 py-1 font-medium text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600 hover:text-primary dark:hover:text-primary transition-colors"
+                    >
+                      Download
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeTabId === "commissions" && (
+                <div
+                  className={`${
+                    user?.roles !== "ADMIN" && user?.roles !== "FINANCE"
+                      ? "hidden"
+                      : ""
+                  }`}
+                >
+                  <div className={`grid grid-cols-2 gap-4 px-4 mb-4`}>
+                    <div className="w-full relative">
+                      <SalesPartnerSearchInput
+                        handleSalesPartnerInfo={handleSalesPersonSearch}
+                        value={salesPartnerSearch.fullName}
+                      />
+                    </div>
+                    <div className="">
+                      <label
+                        htmlFor="totalCommission"
+                        className="mb-3 block text-black dark:text-white"
+                      >
+                        Total Commission
+                      </label>
+                      <input
+                        value={totalCommission?.toFixed(2) || ""}
+                        readOnly
+                        type="number"
+                        name="totalCommission"
+                        id="totalCommission"
+                        className="text-black dark:text-white w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                  <div className="max-w-full overflow-x-auto px-4">
+                    <table className="w-full table-auto">
+                      <thead>
+                        <tr className="bg-gray-2 text-left dark:bg-meta-4">
+                          <th className="py-4 px-4 font-medium text-black dark:text-white">
+                            No
+                          </th>
+                          <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                            Date
+                          </th>
+                          <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                            Item
+                          </th>
+                          <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                            Services
+                          </th>
+                          <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                            Description
+                          </th>
+                          <th className="min-w-[200px] py-4 px-4 font-medium text-black dark:text-white">
+                            Payment Method
+                          </th>
+                          <th className="min-w-[200px] py-4 px-4 font-medium text-black dark:text-white">
+                            Commission %
+                          </th>
+                          <th className="min-w-[200px] py-4 px-4 font-medium text-black dark:text-white">
+                            Reference
+                          </th>
+                          <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                            Amount
+                          </th>
+                          <th className="py-4 px-4 font-medium text-black dark:text-white">
+                            Status
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {formData && formData.length === 0 && (
+                          <tr>
+                            <td colSpan={7} className="text-center text-black dark:text-white">
+                              No data found
+                            </td>
+                          </tr>
+                        )}
+                        {formData.map((data, index) => (
+                          <tr key={index}>
+                            <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                              {index + 1}
+                            </td>
+                            <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                              {commissionTransactions[index]?.date ||
+                                new Date().toLocaleDateString()}
+                            </td>
+                            <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                              {
+                                items?.find((item) => item.id === data.itemId)
+                                  ?.name
+                              }
+                            </td>
+                            <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                              {
+                                services?.find(
+                                  (service) => service.id === data.serviceId
+                                )?.name
+                              }
+                            </td>
+                            <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                              <input
+                                title="description"
+                                type="text"
+                                name="description"
+                                id="description"
+                                className="w-full rounded bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                                value={
+                                  commissionTransactions[index]?.description
+                                }
+                                onChange={(e) =>
+                                  handleCommissionChange(index, e)
+                                }
+                              />
+                            </td>
+                            <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                              <label
+                                htmlFor={`${commissionTransactions[index]?.paymentMethod}-${index}`}
+                                className="sr-only peer"
+                              >
+                                Select an option
+                              </label>
+                              <select
+                                title="paymentMethod"
+                                onChange={(e) =>
+                                  handleCommissionPaymentMethod(index, e)
+                                }
+                                name="paymentMethod"
+                                value={
+                                  commissionTransactions[index]?.paymentMethod
+                                }
+                                defaultValue="cash"
+                                className="w-full rounded bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                              >
+                                <option value="cash" className="text-body dark:text-bodydark bg-white dark:bg-form-input">Cash</option>
+                                <option value="bank-transfer" className="text-body dark:text-bodydark bg-white dark:bg-form-input">
+                                  Bank Transfer
+                                </option>
+                                <option value="mobile-banking" className="text-body dark:text-bodydark bg-white dark:bg-form-input">
+                                  Mobile Banking
+                                </option>
+                                <option value="check" className="text-body dark:text-bodydark bg-white dark:bg-form-input">Check</option>
+                              </select>
+                            </td>
+                            <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                              <input
+                                title="percentage"
+                                type="number"
+                                name="percentage"
+                                className="w-full rounded bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                                min={0}
+                                value={
+                                  commissionTransactions[index]?.percentage
+                                }
+                                onChange={(e) =>
+                                  handleCommissionChange(index, e)
+                                }
+                              />
+                            </td>
+                            <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                              <input
+                                title="reference"
+                                type="text"
+                                name="reference"
+                                id="description"
+                                className="w-full rounded bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                                min={0}
+                                value={commissionTransactions[index]?.reference}
+                                onChange={(e) =>
+                                  handleCommissionChange(index, e)
+                                }
+                              />
+                            </td>
+                            <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                              {Number(
+                                commissionTransactions[index]?.amount || 0
+                              ).toFixed(2)}
+                            </td>
+                            <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                              {commissionTransactions[index]?.status}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {activeTabId === "other-information" && (
+                <>
+                  {user?.roles === "ADMIN" && (
+                    <>
+                      <div className="max-w-full overflow-x-auto px-4">
+                        <table className="w-full table-auto">
+                          <thead>
+                            <tr className="bg-gray-2 text-left dark:bg-meta-4">
+                              <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                No
+                              </th>
+                              <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
+                                Item
+                              </th>
+                              <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                discount
+                              </th>
+                              <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                Level
+                              </th>
+                              <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                T.Unit
+                              </th>
+                              <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                U.Price
+                              </th>
+                              <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                Total
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {formData && formData.length === 0 && (
+                              <tr>
+                                <td colSpan={7} className="text-center text-black dark:text-white">
+                                  No data found
+                                </td>
+                              </tr>
+                            )}
+                            {formData.map((data, index) => (
+                              <tr key={index}>
+                                <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                  {index + 1}
+                                </td>
+                                <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                  {
+                                    items?.find(
+                                      (item) => item.id === data.itemId
+                                    )?.name
+                                  }
+                                </td>
+                                <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                  <div className="flex items-center gap-2 relative">
+                                    <span className="flex-1 px-2">
+                                      {data.discount}
+                                    </span>
+                                    <label
+                                      key={index}
+                                      className="inline-flex items-center cursor-pointer w-1/4"
+                                      htmlFor={`isDiscounted-${index}`}
+                                    >
+                                      <input
+                                        onChange={(e) =>
+                                          handleDiscountChange(index, e)
+                                        }
+                                        type="checkbox"
+                                        name="isDiscounted"
+                                        id={`isDiscounted-${index}`}
+                                        checked={data.isDiscounted}
+                                        className="sr-only peer"
+                                      />
+                                      <div className="relative w-8 h-4 bg-bodydark1 peer-focus:outline-none rounded-full peer dark:bg-graydark peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:start-[2px] after:bg-white after:border-gray-3 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all dark:border-graydark peer-checked:bg-primary"></div>
+                                    </label>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                  {data.level}
+                                </td>
+                                <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                  {data.unit}
+                                </td>
+                                <td className="px-4 py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                  {Number(data.unitPrice || 0).toFixed(2)}
+                                </td>
+                                <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                  {Number(data.totalAmount || 0).toFixed(2)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="pt-4">
+                        <button
+                          onClick={handleCollapseDiscount}
+                          type="button"
+                          className="text-black dark:text-white w-full py-2 px-4 border-t border-stroke border-b mb-4 font-semibold flex items-center gap-4"
+                        >
+                          Additional Discount{" "}
+                          <span className="font-thin">
+                            {collapseDisount ? (
+                              <FaChevronUp />
+                            ) : (
+                              <FaChevronDown />
+                            )}{" "}
+                          </span>{" "}
+                        </button>
+                      </div>
+                      <div className="flex justify-end items-center gap-4 pb-4">
+                        <div
+                          className={`${
+                            collapseDisount ? "hidden" : ""
+                          } px-4 md:w-1/2`}
+                        >
+                          <label
+                            htmlFor="userInputDiscount"
+                            className="mb-3 block text-black dark:text-white"
+                          >
+                            Discount
+                          </label>
+                          <input
+                            type="number"
+                            name="userInputDiscount"
+                            value={parseFloat(userInputDiscount).toFixed(2)}
+                            id="userInputDiscount"
+                            className="w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
+                            onChange={handleUserInputDiscount}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+              </div>
+
+              <div className="flex justify-between pt-4 px-4">
+                <strong className="text-graydark dark:text-white">Totals</strong>
+                <div className="text-graydark dark:text-white">
+                  <p className="flex gap-4 justify-between">
+                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                      Total quantity
+                    </span>
+                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                      {orderInfo.totalQuantity}
+                    </span>
+                  </p>
+                  <p className="flex gap-4 justify-between">
+                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                      Total amount
+                    </span>
+                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                      {orderInfo.totalAmount.toLocaleString()}
+                    </span>
+                  </p>
+                  <p className="flex gap-4 justify-between">
+                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                      Tax(15%)
+                    </span>
+                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                      {orderInfo.tax.toLocaleString()}
+                    </span>
+                  </p>
+                  <p className="flex gap-4 justify-between">
+                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                      Grand total
+                    </span>
+                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                      {orderInfo.grandTotal.toLocaleString()}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="p-4 flex justify-between gap-10 items-center">
+            <div className="w-full">
+              <label
+                htmlFor="message"
+                className="mb-3 block text-black dark:text-white"
+              >
+                Your message
+              </label>
+              <textarea
+                onChange={handleOrderNote}
+                value={orderInfo.internalNote}
+                name="internalNote"
+                id="message"
+                rows={4}
+                className="text-black dark:text-white w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                placeholder="Leave a comment..."
+              ></textarea>
+            </div>
+            <div className="w-full">
+              <p className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
+                File Names
+              </p>
+
+              <ul className="space-y-4 text-left text-gray-500 dark:text-gray-400">
+                {fileName.map((item, index) => (
+                  <li
+                    key={index}
+                    className="flex items-center space-x-3 rtl:space-x-reverse"
+                  >
+                    <div className="w-full relative">
+                      <label
+                        htmlFor={`npm-install-copy-button-${index}`}
+                        className="sr-only"
+                      >
+                        Label
+                      </label>
+                      <input
+                        id={`npm-install-copy-button-${index}`}
+                        type="text"
+                        className="text-black dark:text-white w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                        value={item}
+                        disabled
+                        readOnly
+                        ref={(el) => (inputRefs.current[index] = el)}
+                      />
+                      <button
+                        type="button"
+                        title={tooltipMessages[index]}
+                        onClick={() => copyToClipboard(index)}
+                        className="absolute end-2 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg p-2 inline-flex items-center justify-center"
+                      >
+                        {icons[index] === "default" ? (
+                          <svg
+                            className="w-3.5 h-3.5"
+                            aria-hidden="true"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="currentColor"
+                            viewBox="0 0 18 20"
+                          >
+                            <path d="M16 1h-3.278A1.992 1.992 0 0 0 11 0H7a1.993 1.993 0 0 0-1.722 1H2a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2Zm-3 14H5a1 1 0 0 1 0-2h8a1 1 0 0 1 0 2Zm0-4H5a1 1 0 0 1 0-2h8a1 1 0 1 1 0 2Zm0-5H5a1 1 0 0 1 0-2h2V2h4v2h2a1 1 0 1 1 0 2Z" />
+                          </svg>
+                        ) : (
+                          <span className="inline-flex items-center">
+                            <svg
+                              className="flex-shrink-0 w-3.5 h-3.5 text-green-500 dark:text-green-400"
+                              aria-hidden="true"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 16 12"
+                            >
+                              <path
+                                stroke="currentColor"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="2"
+                                d="M1 5.917 5.724 10.5 15 1.5"
+                              />
+                            </svg>
+                          </span>
+                        )}
+                      </button>
+                      <div
+                        role="tooltip"
+                        className="absolute z-10 invisible inline-block px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
+                      >
+                        <span>{tooltipMessages[index]}</span>
+                        <div className="tooltip-arrow" data-popper-arrow></div>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={isUpdating}
+              className="flex justify-center rounded bg-primary p-3 font-medium text-gray"
+            >
+              Update
+            </button>
+          </div>
+        </form>
+      </section>
+    </>
+  );
+};

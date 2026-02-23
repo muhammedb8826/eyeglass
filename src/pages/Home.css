@@ -1,0 +1,177 @@
+/* Home Page Specific Styles - Consistent Color Scheme */
+
+/* Hero Section */
+.home-hero-section {
+  background: linear-gradient(135deg, #ec4899 0%, #f97316 50%, #ec4899 100%) !important;
+  min-height: 600px !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.home-hero-content h1,
+.home-hero-content p,
+.home-hero-content span:not(.text-pink-200) {
+  color: white !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+.home-hero-content .text-pink-200 {
+  color: #fbbf24 !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Section Titles and Headings */
+.home-section-title {
+  color: #ec4899 !important;
+}
+
+.home-section-heading {
+  color: #1f2937 !important;
+}
+
+.home-section-text {
+  color: #4b5563 !important;
+}
+
+/* Service Cards */
+.home-service-card {
+  background: white !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+  transition: all 0.3s ease !important;
+}
+
+.home-service-card:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+}
+
+.home-service-icon {
+  color: #ec4899 !important;
+}
+
+/* Feature Cards */
+.home-feature-card {
+  background: white !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+  transition: all 0.3s ease !important;
+}
+
+.home-feature-card:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Pricing Cards */
+.home-pricing-card {
+  background: white !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+  transition: all 0.3s ease !important;
+  border: 2px solid transparent !important;
+}
+
+.home-pricing-card:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+}
+
+.home-pricing-card.featured {
+  border-color: #ec4899 !important;
+  box-shadow: 0 10px 15px -3px rgba(236, 72, 153, 0.3), 0 4px 6px -2px rgba(236, 72, 153, 0.2) !important;
+}
+
+/* Testimonial Cards */
+.home-testimonial-card {
+  background: white !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+  transition: all 0.3s ease !important;
+}
+
+.home-testimonial-card:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+}
+
+.home-testimonial-text {
+  color: #4b5563 !important;
+  font-style: italic !important;
+}
+
+.home-testimonial-author {
+  color: #ec4899 !important;
+  font-weight: 600 !important;
+}
+
+/* CTA Section */
+.home-cta-section {
+  background: linear-gradient(135deg, #ec4899 0%, #f97316 50%, #ec4899 100%) !important;
+}
+
+/* CTA Buttons */
+.home-cta-button {
+  background: white !important;
+  color: #ec4899 !important;
+  transition: all 0.3s ease !important;
+}
+
+.home-cta-button:hover {
+  background: #f3f4f6 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+}
+
+.home-cta-button-outline {
+  border: 2px solid white !important;
+  color: white !important;
+  background: transparent !important;
+  transition: all 0.3s ease !important;
+}
+
+.home-cta-button-outline:hover {
+  background: white !important;
+  color: #ec4899 !important;
+  transform: translateY(-2px) !important;
+}
+
+/* Stats Numbers */
+.home-stats-number {
+  color: #ec4899 !important;
+}
+
+/* Clients Marquee Animation */
+@keyframes scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(calc(-50% - 1.5rem));
+  }
+}
+
+.animate-scroll {
+  animation: scroll 40s linear infinite;
+  display: flex;
+  will-change: transform;
+}
+
+.animate-scroll:hover {
+  animation-play-state: paused;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .home-hero-section {
+    min-height: 500px !important;
+  }
+  
+  .home-hero-content h1 {
+    font-size: 2.5rem !important;
+  }
+  
+  .home-hero-content p {
+    font-size: 1.125rem !important;
+  }
+}

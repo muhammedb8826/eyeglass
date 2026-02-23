@@ -1,0 +1,279 @@
+/* Latest Work Page Styles */
+.latest-work-page {
+  min-height: 100vh;
+}
+
+/* Section Titles */
+.latest-work-section-title {
+  background: linear-gradient(135deg, #1f2937 0%, #374151 50%, #4b5563 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.latest-work-section-text {
+  color: #6b7280;
+  line-height: 1.6;
+}
+
+/* Portfolio Cards */
+.latest-work-card {
+  background: white !important;
+  border-radius: 1rem !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25) !important;
+  transition: all 0.3s ease !important;
+  overflow: hidden !important;
+  position: relative !important;
+  display: block !important;
+  visibility: visible !important;
+}
+
+.latest-work-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+.latest-work-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.1) 0%, rgba(147, 51, 234, 0.1) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+}
+
+.latest-work-card:hover::before {
+  opacity: 1;
+}
+
+/* Card Image Hover Effects */
+.latest-work-card img {
+  transition: transform 0.5s ease;
+}
+
+.latest-work-card:hover img {
+  transform: scale(1.1);
+}
+
+/* Category Badge */
+.latest-work-card .bg-pink-500 {
+  background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+  box-shadow: 0 4px 12px rgba(236, 72, 153, 0.3);
+}
+
+/* Tags */
+.latest-work-card .bg-pink-50 {
+  background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%);
+  border: 1px solid #fbcfe8;
+}
+
+.latest-work-card .text-pink-600 {
+  color: #db2777;
+  font-weight: 600;
+}
+
+/* Action Buttons */
+.latest-work-card button {
+  background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.latest-work-card button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.latest-work-card button:hover::before {
+  left: 100%;
+}
+
+.latest-work-card button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(236, 72, 153, 0.4);
+}
+
+/* Stats Section */
+.latest-work-stat {
+  padding: 2rem 1rem;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+.latest-work-stat .text-pink-100 {
+  color: #000000 !important;
+  font-weight: 600 !important;
+  text-shadow: none !important;
+}
+
+.latest-work-stat:hover {
+  transform: translateY(-5px);
+  background: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.latest-work-stat .text-4xl {
+  background: linear-gradient(135deg, #ffffff 0%, #fbbf24 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Category Filter Buttons */
+.latest-work-page .bg-pink-500 {
+  background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+  box-shadow: 0 4px 15px rgba(236, 72, 153, 0.4);
+}
+
+.latest-work-page .bg-white\/20 {
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.latest-work-page .bg-white\/20:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(255, 255, 255, 0.2);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .latest-work-section-title {
+    font-size: 2.5rem;
+  }
+  
+  .latest-work-card {
+    margin-bottom: 1rem;
+  }
+  
+  .latest-work-stat {
+    padding: 1.5rem 1rem;
+  }
+  
+  .latest-work-stat .text-4xl {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .latest-work-page .text-5xl {
+    font-size: 3rem;
+  }
+  
+  .latest-work-page .text-xl {
+    font-size: 1.125rem;
+  }
+  
+  .latest-work-page .flex-wrap {
+    gap: 0.5rem;
+  }
+  
+  .latest-work-page .px-6 {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .latest-work-page .py-3 {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+}
+
+/* Animation for cards */
+.latest-work-card {
+  animation: fadeInUp 0.6s ease-out forwards !important;
+  opacity: 1 !important;
+  transform: translateY(0) !important;
+  min-height: 400px !important;
+  border: 2px solid #e5e7eb !important;
+}
+
+.latest-work-card:nth-child(1) { animation-delay: 0.1s; }
+.latest-work-card:nth-child(2) { animation-delay: 0.2s; }
+.latest-work-card:nth-child(3) { animation-delay: 0.3s; }
+.latest-work-card:nth-child(4) { animation-delay: 0.4s; }
+.latest-work-card:nth-child(5) { animation-delay: 0.5s; }
+.latest-work-card:nth-child(6) { animation-delay: 0.6s; }
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Stats animation */
+.latest-work-stat {
+  animation: fadeInScale 0.8s ease-out forwards !important;
+  opacity: 1 !important;
+  transform: scale(1) !important;
+}
+
+.latest-work-stat:nth-child(1) { animation-delay: 0.1s; }
+.latest-work-stat:nth-child(2) { animation-delay: 0.2s; }
+.latest-work-stat:nth-child(3) { animation-delay: 0.3s; }
+.latest-work-stat:nth-child(4) { animation-delay: 0.4s; }
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Line clamp utility for text truncation */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Enhanced hover effects for interactive elements */
+.latest-work-card .group:hover .text-gray-800 {
+  color: #ec4899;
+}
+
+.latest-work-card .group:hover .bg-pink-50 {
+  background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%);
+  transform: scale(1.05);
+}
+
+/* Smooth transitions for all interactive elements */
+.latest-work-page * {
+  transition: all 0.3s ease;
+}
+
+/* Focus states for accessibility */
+.latest-work-page button:focus {
+  outline: 2px solid #ec4899;
+  outline-offset: 2px;
+}
+
+.latest-work-page button:focus-visible {
+  outline: 2px solid #ec4899;
+  outline-offset: 2px;
+}
