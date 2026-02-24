@@ -20,6 +20,8 @@ export const CustomerRegistration = ({ handleModalOpen }: CustomerRegistrationPr
     company: "",
     address: "",
     description: "",
+    dateOfBirth: "",
+    gender: "",
   });
 
 
@@ -154,6 +156,44 @@ export const CustomerRegistration = ({ handleModalOpen }: CustomerRegistrationPr
                       name="address"
                       className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                     />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="dateOfBirth"
+                      className="mb-3 block text-sm font-medium text-black dark:text-white"
+                    >
+                      Date of Birth
+                    </label>
+                    <input
+                      onChange={handleChange}
+                      value={formData.dateOfBirth}
+                      type="date"
+                      id="dateOfBirth"
+                      name="dateOfBirth"
+                      className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="gender"
+                      className="mb-3 block text-sm font-medium text-black dark:text-white"
+                    >
+                      Gender
+                    </label>
+                    <select
+                      id="gender"
+                      name="gender"
+                      value={formData.gender}
+                      onChange={(e) =>
+                        setFormData({ ...formData, gender: e.target.value })
+                      }
+                      className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                    >
+                      <option value="">Select gender</option>
+                      <option value="MALE">Male</option>
+                      <option value="FEMALE">Female</option>
+                      <option value="OTHER">Other</option>
+                    </select>
                   </div>
                 </div>
               </div>

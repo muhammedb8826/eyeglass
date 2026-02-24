@@ -42,6 +42,7 @@ export const ItemEdit = () => {
   const {data: uniteCategories} = useGetAllUnitsQuery();
   const { data: machines } = useGetAllMachinesQuery();
   const [formData, setFormData] = useState({
+    itemCode: "",
     name: "",
     description: "",
     machineId: '',
@@ -49,7 +50,10 @@ export const ItemEdit = () => {
     initialStock: 0,
     updatedInitialStock: 0,
     unitCategoryId: '',
-    id: ""
+    id: "",
+    lensMaterial: "",
+    lensIndex: "",
+    lensType: "",
   });
 
   const [uoms, setUoms] = useState<UoMType[]>([]);
@@ -69,6 +73,7 @@ export const ItemEdit = () => {
   useEffect(() => {
     if (data) {
       setFormData({
+        itemCode: data.itemCode || "",
         name: data.name || "",
         description: data.description || "",
         machineId: data.machineId || "",
@@ -76,7 +81,10 @@ export const ItemEdit = () => {
         initialStock: data.initial_stock || 0,
         updatedInitialStock: 0,
         id: data.id || "",
-        unitCategoryId: data.unitCategoryId || ''
+        unitCategoryId: data.unitCategoryId || '',
+        lensMaterial: data.lensMaterial || "",
+        lensIndex: data.lensIndex ? String(data.lensIndex) : "",
+        lensType: data.lensType || "",
       });
       setSalesUom(data.defaultUomId || '');
       setPurchaseUom(data.purchaseUomId || '');
@@ -135,6 +143,10 @@ export const ItemEdit = () => {
       can_be_purchased: canBePurchased,
       defaultUomId: salesUom,
       purchaseUomId: purchaseUom,
+      itemCode: updatedFormData.itemCode || undefined,
+      lensMaterial: updatedFormData.lensMaterial || undefined,
+      lensType: updatedFormData.lensType || undefined,
+      lensIndex: updatedFormData.lensIndex ? Number(updatedFormData.lensIndex) : undefined,
     };
 
     try {
@@ -193,6 +205,23 @@ export const ItemEdit = () => {
             {activeTabId === 'general' && (
             <div className="p-7">
               <div className="grid gap-6 mb-6 md:grid-cols-2">
+                <div className="col-span-2">
+                  <label
+                    htmlFor="itemCode"
+                    className="mb-3 block text-sm font-medium text-black dark:text-white"
+                  >
+                    Item code
+                  </label>
+                  <input
+                    onChange={handleChange}
+                    value={formData.itemCode}
+                    type="text"
+                    id="itemCode"
+                    name="itemCode"
+                    className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                    placeholder="e.g. 1123"
+                  />
+                </div>
                 <div className="col-span-2">
                   <label
                     htmlFor="name"
@@ -303,6 +332,58 @@ export const ItemEdit = () => {
                     name="reorderLevel"
                     min={0}
                     className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="lensMaterial"
+                    className="mb-3 block text-sm font-medium text-black dark:text-white"
+                  >
+                    Lens material
+                  </label>
+                  <input
+                    onChange={handleChange}
+                    value={formData.lensMaterial}
+                    type="text"
+                    id="lensMaterial"
+                    name="lensMaterial"
+                    className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                    placeholder="e.g. POLYCARBONATE"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="lensIndex"
+                    className="mb-3 block text-sm font-medium text-black dark:text-white"
+                  >
+                    Lens index
+                  </label>
+                  <input
+                    onChange={handleChange}
+                    value={formData.lensIndex}
+                    type="number"
+                    step="0.01"
+                    id="lensIndex"
+                    name="lensIndex"
+                    className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                    placeholder="e.g. 1.59"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="lensType"
+                    className="mb-3 block text-sm font-medium text-black dark:text-white"
+                  >
+                    Lens type
+                  </label>
+                  <input
+                    onChange={handleChange}
+                    value={formData.lensType}
+                    type="text"
+                    id="lensType"
+                    name="lensType"
+                    className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                    placeholder="e.g. SINGLE_VISION"
                   />
                 </div>
                 <div>

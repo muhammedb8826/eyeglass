@@ -35,4 +35,29 @@ export interface OrderItemType {
     service?: ServiceType
     nonStockService?: ServiceType
     uom?: UoMType
+
+    // Eyeglass prescription fields
+    sphereRight?: number;
+    sphereLeft?: number;
+    cylinderRight?: number;
+    cylinderLeft?: number;
+    axisRight?: number;
+    axisLeft?: number;
+    addRight?: number;
+    addLeft?: number;
+
+    pd?: number;
+    pdMonocularRight?: number;
+    pdMonocularLeft?: number;
+
+    lensType?: string;
+    lensMaterial?: string;
+    lensCoating?: string;
+    lensIndex?: number;
+    baseCurve?: number;
+    diameter?: number;
+    tintColor?: string | null;
+
+    prismRight?: number;
+    prismLeft?: number;
 }

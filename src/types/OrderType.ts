@@ -11,6 +11,9 @@ export interface OrderType {
     orderSource: string,
     orderDate: string,
     deliveryDate: string,
+    prescriptionDate?: string;
+    optometristName?: string;
+    urgency?: string;
     totalAmount: number,
     tax: number,
     grandTotal: number,

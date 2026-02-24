@@ -43,6 +43,7 @@ export const ItemRegistration = () => {
   const { data: machines, isLoading: isMachinesLoading } = useGetAllMachinesQuery();
 
   const [formData, setFormData] = useState({
+    itemCode: "",
     name: "",
     description: "",
     machineId: "",
@@ -51,6 +52,9 @@ export const ItemRegistration = () => {
     updatedInitialStock: 0,
     quantity: 0,
     unitCategoryId: '',
+    lensMaterial: "",
+    lensIndex: "",
+    lensType: "",
   });
 
   const [uoms, setUoms] = useState<UoMType[]>([]);
@@ -104,6 +108,7 @@ export const ItemRegistration = () => {
       return
     }
     const data = {
+      itemCode: formData.itemCode || undefined,
       name: formData.name,
       description: formData.description,
       machineId: formData.machineId,
@@ -116,6 +121,9 @@ export const ItemRegistration = () => {
       purchaseUomId: purchaseUom,
       quantity: Number(formData.initialStock),
       unitCategoryId: formData.unitCategoryId,
+      lensMaterial: formData.lensMaterial || undefined,
+      lensType: formData.lensType || undefined,
+      lensIndex: formData.lensIndex ? Number(formData.lensIndex) : undefined,
     };
 
     try {
@@ -182,6 +190,23 @@ export const ItemRegistration = () => {
                 <div className="grid gap-6 mb-6 md:grid-cols-2">
                   <div className="col-span-2">
                     <label
+                      htmlFor="itemCode"
+                      className="mb-3 block text-sm font-medium text-black dark:text-white"
+                    >
+                      Item code
+                    </label>
+                    <input
+                      onChange={handleChange}
+                      value={formData.itemCode}
+                      type="text"
+                      id="itemCode"
+                      name="itemCode"
+                      className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                      placeholder="e.g. 1123"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label
                       htmlFor="name"
                       className="mb-3 block text-sm font-medium text-black dark:text-white"
                     >
@@ -223,6 +248,58 @@ export const ItemRegistration = () => {
                         <option value="" disabled>No units available</option>
                       )}
                     </select>
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="lensMaterial"
+                      className="mb-3 block text-sm font-medium text-black dark:text-white"
+                    >
+                      Lens material
+                    </label>
+                    <input
+                      onChange={handleChange}
+                      value={formData.lensMaterial}
+                      type="text"
+                      id="lensMaterial"
+                      name="lensMaterial"
+                      className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                      placeholder="e.g. POLYCARBONATE"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="lensIndex"
+                      className="mb-3 block text-sm font-medium text-black dark:text-white"
+                    >
+                      Lens index
+                    </label>
+                    <input
+                      onChange={handleChange}
+                      value={formData.lensIndex}
+                      type="number"
+                      step="0.01"
+                      id="lensIndex"
+                      name="lensIndex"
+                      className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                      placeholder="e.g. 1.59"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="lensType"
+                      className="mb-3 block text-sm font-medium text-black dark:text-white"
+                    >
+                      Lens type
+                    </label>
+                    <input
+                      onChange={handleChange}
+                      value={formData.lensType}
+                      type="text"
+                      id="lensType"
+                      name="lensType"
+                      className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
+                      placeholder="e.g. SINGLE_VISION"
+                    />
                   </div>
                   <div>
                     <label

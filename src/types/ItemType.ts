@@ -4,6 +4,7 @@ import { UoMType } from "./UomType";
 
 export interface ItemType {
     id: string;
+    itemCode?: string;
     name: string;
     description: string;
     initial_stock: number;
@@ -28,4 +29,9 @@ export interface ItemType {
     machine: MachineType;
     purchaseUom: UoMType;
     defaultUom: UoMType;
+
+    // Lens metadata for eyeglass blanks
+    lensMaterial?: string;
+    lensIndex?: number;
+    lensType?: string;
 }
