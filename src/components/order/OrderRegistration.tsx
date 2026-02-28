@@ -15,7 +15,6 @@ import Tabs from "@/common/TabComponent";
 import SelectOptions from "@/common/SelectOptions";
 import { SalesPartnerType } from "@/types/SalesPartnerType";
 import { useGetAllCustomersQuery } from "@/redux/customer/customerApiSlice";
-import { ItemType } from "@/types/ItemType";
 import { ItemBaseType } from "@/types/ItemBaseType";
 import { OrderItemType } from "@/types/OrderItemType";
 import { OrderType } from "@/types/OrderType";
@@ -26,7 +25,6 @@ import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
 import { useGetAllPricingsQuery } from "@/redux/pricing/pricingApiSlice";
 import { useGetAllServicesQuery } from "@/redux/services/servicesApiSlice";
 import { useGetAllNonStockServicesQuery } from "@/redux/services/nonStockServicesApiSlice";
-import { PricingType } from "@/types/PricingType";
 import { useGetAllDiscountsQuery } from "@/redux/discount/discountApiSlice";
 import { handleApiError } from "@/utils/errorHandling";
 
@@ -458,27 +456,7 @@ export const OrderRegistration = () => {
         serviceId: value,
       };
 
-
-        const quantity = parseFloat(updatedFormData[index].quantity.toString());
-        const constant = updatedFormData[index].constant;
-
-        const selectedItem = items?.find((item) => item.id === updatedFormData[index].itemId);
-
-        if (selectedItem) {
-          updatedFormData[index].unitPrice = parseFloat(calculateUnitPrice(updatedFormData[index], selectedItem, index)?.toString() || '0');
-          updatedFormData[index].totalAmount = parseFloat(calculateUnitPrice(updatedFormData[index], selectedItem, index)?.toString() || '0');
-        }
-
-
-        if (!isNaN(quantity) && !constant) {
-          const selectedItem = items?.find((item) => item.id === updatedFormData[index].itemId);
-          if (selectedItem) {
-            updatedFormData[index].unitPrice = parseFloat(calculateUnitPriceForNonAreaItems(updatedFormData[index], selectedItem, index)?.toString() || '0');
-            updatedFormData[index].totalAmount = parseFloat(calculateUnitPriceForNonAreaItems(updatedFormData[index], selectedItem, index)?.toString() || '0');
-          }
-        }
-
-       // Find the matching pricing based on itemId and serviceId
+      // Find the matching pricing based on itemId and serviceId (legacy flow)
       const filterSellingPrice = pricings?.find(
         (pricing) => pricing.itemId === updatedFormData[index].itemId && 
         (pricing.serviceId === value || pricing.nonStockServiceId === value)
@@ -492,105 +470,6 @@ export const OrderRegistration = () => {
       setFormData(updatedFormData);
     }
     };
-
-  const calculateUnitPrice = (formDataItem: OrderItemType, selectedItem: ItemType, index: number) => {
-    const { width, height, quantity, uomId, itemId, serviceId } = formDataItem;
-    console.log(uomId);
-    console.log(selectedItem);
-    const foundUom = selectedItem?.unitCategory?.uoms?.find((uom) => uom.id === uomId);
-    console.log(foundUom);
-    const unitCategory = items?.find((item) => item.id === itemId.toString())?.unitCategory;
-    const filterSellingPrice = pricings?.find((pricing) => 
-      pricing.itemId === itemId && 
-      (pricing.serviceId === serviceId || pricing.nonStockServiceId === serviceId)
-    );
-
-    if (filterSellingPrice) {
-      if (filterSellingPrice.sellingPrice > 0 && foundUom && unitCategory?.constant && width && height && quantity) {
-        const baseUnit = unitCategory.uoms.find((unit) => unit.baseUnit === true);
-        const servicePrice = filterSellingPrice.sellingPrice;
-        const convertedWidth = parseFloat(width) * parseFloat(foundUom.conversionRate?.toString() || '0');
-        const convertedHeight = parseFloat(height) * parseFloat(foundUom.conversionRate?.toString() || '0');
-        const combination = convertedWidth * convertedHeight * parseFloat(quantity.toString()) * parseFloat(servicePrice.toString() || '0');
-        // const devider = parseFloat(baseUnit?.conversionRate?.toString() || '0') * parseFloat(unitCategory?.constantValue.toString() || '0');
-        const devider = parseFloat(filterSellingPrice.width?.toString() || '0') * parseFloat(filterSellingPrice.height?.toString() || '0');
-
-        setFormData((prevFormData) => {
-          const updatedFormData = [...prevFormData];
-          updatedFormData[index] = {
-            ...updatedFormData[index],
-            pricingId: filterSellingPrice?.id,
-            unit: convertedWidth * convertedHeight * parseFloat(quantity.toString()),
-            baseUomId: baseUnit?.id || '',
-          };
-          return updatedFormData;
-        });
-
-
-        return ((parseFloat(combination.toString()) / parseFloat(devider.toString()))).toFixed(2);
-      }
-    }
-    return 0;
-  };
-
-  const calculateUnitPriceForNonAreaItems = (formDataItem: OrderItemType, selectedItem: ItemType, index: number) => {
-    const { quantity, uomId, itemId, serviceId } = formDataItem;
-    const foundUom = selectedItem?.unitCategory?.uoms?.find((uom) => uom.id === uomId);
-    const unitCategory = items?.find((item) => item.id === itemId.toString())?.unitCategory;
-    const filterSellingPrice = pricings?.find((pricing: PricingType) => 
-      pricing.itemId === itemId && 
-      (pricing.serviceId === serviceId || pricing.nonStockServiceId === serviceId)
-    );
-
-    if (filterSellingPrice) {
-      if (!unitCategory?.constant && filterSellingPrice.sellingPrice > 0) {
-        const convertedQuantity = parseFloat(quantity.toString()) * parseFloat(foundUom?.conversionRate?.toString() || '0');
-        const baseUnit = unitCategory?.uoms.find((unit) => unit.baseUnit === true);
-
-        setFormData((prevFormData) => {
-          const updatedFormData = [...prevFormData];
-          updatedFormData[index] = {
-            ...updatedFormData[index],
-            pricingId: filterSellingPrice?.id,
-            unit: convertedQuantity,
-            baseUomId: baseUnit?.id || '',
-          };
-          return updatedFormData;
-        });
-
-        const combination = convertedQuantity * parseFloat(filterSellingPrice?.sellingPrice?.toString() || '0');
-        return combination.toFixed(2);
-      }
-    }
-    return 0;
-  }
-
-  const handleInputChanges = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-
-    setFormData((prevFormData) => {
-      const updatedFormData = [...prevFormData];
-      updatedFormData[index] = {
-        ...updatedFormData[index],
-        [name]: value,
-      };
-
-      const width = parseFloat(updatedFormData[index].width);
-      const height = parseFloat(updatedFormData[index].height);
-      const quantity = parseFloat(updatedFormData[index].quantity.toString());
-
-      if (!isNaN(width) && !isNaN(height) && !isNaN(quantity)) {
-        const selectedItem = items?.find((item) => item.id === updatedFormData[index].itemId);
-
-        if (selectedItem) {
-          updatedFormData[index].unitPrice = parseFloat(calculateUnitPrice(updatedFormData[index], selectedItem, index)?.toString() || '0');
-          updatedFormData[index].totalAmount = parseFloat(calculateUnitPrice(updatedFormData[index], selectedItem, index)?.toString() || '0');
-        }
-      }
-
-      return updatedFormData;
-    });
-  };
 
   const handleRxNumberChange = (
     index: number,
@@ -690,22 +569,6 @@ export const OrderRegistration = () => {
           ...updatedFormData[index],
           uomId: value,
         };
-
-
-        const quantity = parseFloat(updatedFormData[index].quantity.toString());
-        const constant = updatedFormData[index].constant;
-
-        // Pass the selected item to calculateUnitPrice
-        updatedFormData[index].unitPrice = parseFloat(calculateUnitPrice(updatedFormData[index], selectedItem, index)?.toString() || '0');
-        updatedFormData[index].totalAmount = parseFloat(calculateUnitPrice(updatedFormData[index], selectedItem, index)?.toString() || '0');
-
-        if (!isNaN(quantity) && !constant) {
-          const selectedItem = items?.find((item) => item.id === updatedFormData[index].itemId);
-          if (selectedItem) {
-            updatedFormData[index].unitPrice = parseFloat(calculateUnitPriceForNonAreaItems(updatedFormData[index], selectedItem, index)?.toString() || '0');
-            updatedFormData[index].totalAmount = parseFloat(calculateUnitPriceForNonAreaItems(updatedFormData[index], selectedItem, index)?.toString() || '0');
-          }
-        }
       }
       return updatedFormData;
     });
@@ -721,31 +584,6 @@ export const OrderRegistration = () => {
         ...updatedFormData[index],
         quantity,
       };
-
-      const width = parseFloat(updatedFormData[index].width);
-      const height = parseFloat(updatedFormData[index].height);
-      const quantityy = parseFloat(updatedFormData[index].quantity.toString());
-      const constant = updatedFormData[index].constant;
-
-      // Ensure width, height, and quantity are valid numbers
-      if (!isNaN(width) && !isNaN(height) && parseFloat(quantity) > 0) {
-        const selectedItem = items?.find((item) => item.id === updatedFormData[index].itemId);
-
-        // Pass formDataItem and selectedItem to calculateUnitPrice
-        if (selectedItem) {
-          updatedFormData[index].unitPrice = parseFloat(calculateUnitPrice(updatedFormData[index], selectedItem, index)?.toString() || '0');
-          updatedFormData[index].totalAmount = parseFloat(calculateUnitPrice(updatedFormData[index], selectedItem, index)?.toString() || '0');
-        }
-      }
-
-      if (!isNaN(quantityy) && !constant) {
-        const selectedItem = items?.find((item) => item.id === updatedFormData[index].itemId);
-        if (selectedItem) {
-          updatedFormData[index].unitPrice = parseFloat(calculateUnitPriceForNonAreaItems(updatedFormData[index], selectedItem, index)?.toString() || '0');
-          updatedFormData[index].totalAmount = parseFloat(calculateUnitPriceForNonAreaItems(updatedFormData[index], selectedItem, index)?.toString() || '0');
-        }
-      }
-
       return updatedFormData;
     });
   };
@@ -971,6 +809,15 @@ export const OrderRegistration = () => {
     if (formData.length === 0) {
       const message = "Please add order items";
       toast.error(message);
+      return;
+    }
+    const missingPricingLine = formData.find(
+      (item) => item.itemId && !item.pricingId,
+    );
+    if (missingPricingLine) {
+      toast.error(
+        "Pricing is missing for one or more items. Please configure pricing for the selected lens (and base) before creating the order.",
+      );
       return;
     }
     const date = new Date();
@@ -1264,16 +1111,6 @@ export const OrderRegistration = () => {
                               Quantity
                             </th>
                             <th
-                              className="min-w-[100px] py-4 px-4 font-medium text-black dark:text-white"
-                            >
-                              Width
-                            </th>
-                            <th
-                              className="min-w-[100px] py-4 px-4 font-medium text-black dark:text-white"
-                            >
-                              Height
-                            </th>
-                            <th
                               className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white"
                             >
                               U.Price
@@ -1360,36 +1197,6 @@ export const OrderRegistration = () => {
                                   />
                                 </td>
                                 <td className="py-2 border-b text-graydark dark:text-white border-[#eee] dark:border-strokedark">
-                                  <input
-                                    title="width"
-                                    step="any"
-                                    type="number"
-                                    name="width"
-                                    id="width"
-                                    onChange={(e) => handleInputChanges(index, e)}
-                                    value={data.width}
-                                    className="w-full rounded bg-transparent px-2 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-                                    required
-                                    min={0}
-                                    disabled={!data.constant}
-                                  />
-                                </td>
-                                <td className="py-2 border-b text-graydark dark:text-white border-[#eee] dark:border-strokedark">
-                                  <input
-                                    title="height"
-                                    step="any"
-                                    type="number"
-                                    name="height"
-                                    id="height"
-                                    onChange={(e) => handleInputChanges(index, e)}
-                                    value={data.height}
-                                    className="w-full rounded bg-transparent px-2 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-                                    required
-                                    min={0}
-                                    disabled={!data.constant}
-                                  />
-                                </td>
-                                <td className="py-2 border-b text-graydark dark:text-white border-[#eee] dark:border-strokedark">
                                   {data.unitPrice}
                                 </td>
                                 <td className="py-2 border-b text-graydark dark:text-white border-[#eee] dark:border-strokedark">
@@ -1417,7 +1224,7 @@ export const OrderRegistration = () => {
                               {activeRxRow === index && (
                                 <tr>
                                   <td
-                                    colSpan={10}
+                                    colSpan={8}
                                     className="bg-gray-50 dark:bg-boxdark p-4 border border-t-0 border-[#eee] dark:border-strokedark"
                                   >
                                     <div className="grid gap-4 md:grid-cols-4">
