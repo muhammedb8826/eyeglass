@@ -1,4 +1,4 @@
-import { BaseQueryFn, createApi, FetchArgs, fetchBaseQuery, FetchBaseQueryError } from "@reduxjs/toolkit/query/react";
+import { BaseQueryFn, createApi, FetchArgs, fetchBaseQuery, FetchBaseQueryError, QueryReturnValue } from "@reduxjs/toolkit/query/react";
 import { setCredentials, logOut } from "../authSlice";
 import { RootState } from "../store";
 
@@ -20,13 +20,44 @@ const baseQuery: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError> =
     }
 });
 
+type WrappedSuccessResponse<T = unknown> = {
+    success: boolean;
+    message: string;
+    data: T;
+    timestamp?: string;
+};
+
+const unwrapApiResponse = (result: QueryReturnValue<unknown, FetchBaseQueryError, unknown>): void => {
+    const raw = result.data as WrappedSuccessResponse | undefined;
+
+    if (
+        raw &&
+        typeof raw === "object" &&
+        Object.prototype.hasOwnProperty.call(raw, "success") &&
+        Object.prototype.hasOwnProperty.call(raw, "data")
+    ) {
+        if (raw.success) {
+            // Happy path – expose the inner data to RTK Query consumers
+            result.data = raw.data;
+        } else {
+            // Business error with HTTP 200 – surface it as a RTK Query error
+            result.error = {
+                status: "CUSTOM_ERROR",
+                data: raw,
+            } as FetchBaseQueryError;
+            delete result.data;
+        }
+    }
+
+};
+
 const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryError> = async (args, api, extraOptions) => {
     let result = await baseQuery(args, api, extraOptions);
+    unwrapApiResponse(result);
 
     if (result.error && result.error.status === 401) {
         console.log('Access token expired. Attempting to refresh.');
 
-        // const state = api.getState() as RootState;
         const refreshToken = localStorage.getItem('refreshToken');
         console.log('refreshToken', refreshToken);
         
@@ -40,6 +71,7 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
             };
 
             const refreshResult = await baseQuery(refreshArgs, api, extraOptions);
+            unwrapApiResponse(refreshResult);
             console.log('refreshResult', refreshResult);
 
             if (refreshResult.data) {
@@ -52,6 +84,7 @@ const baseQueryWithReauth: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQue
 
                 // Retry the original request with new access token
                 result = await baseQuery(args, api, extraOptions);
+                unwrapApiResponse(result);
             } else {
                 api.dispatch(logOut())
             }

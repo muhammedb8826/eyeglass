@@ -5,12 +5,13 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import { IoMdClose } from "react-icons/io";
 import { useGetPricingQuery, useUpdatePricingMutation } from "@/redux/pricing/pricingApiSlice";
-import { useGetAllItemsQuery } from "@/redux/items/itemsApiSlice";
+import { useGetAllItemsQuery, useGetItemBasesQuery } from "@/redux/items/itemsApiSlice";
 import { useGetAllServicesQuery } from "@/redux/services/servicesApiSlice";
 import { useGetAllNonStockServicesQuery } from "@/redux/services/nonStockServicesApiSlice";
 import SelectOptions from "@/common/SelectOptions";
 import { selectCurrentUser } from "@/redux/authSlice";
 import { useSelector } from "react-redux";
+import { ItemBaseType } from "@/types/ItemBaseType";
 
 interface ErrorData {
   message: string;
@@ -26,6 +27,7 @@ export default function PricingEditModal({ handleModalOpen, id }: { handleModalO
 
 
   const [itemId, setItemId] = useState<string>('');
+  const [itemBaseId, setItemBaseId] = useState<string>('');
   const [serviceId, setServiceId] = useState<string>('');
 
   const [formData, setFormData] = useState({
@@ -40,10 +42,18 @@ export default function PricingEditModal({ handleModalOpen, id }: { handleModalO
   
   useEffect(() => {
     if (data) {
-      setFormData(data);
+      setFormData({
+        sellingPrice: data.sellingPrice,
+        costPrice: data.costPrice,
+        width: data.width ?? 1,
+        height: data.height ?? 1,
+        baseUomId: data.baseUomId,
+        constant: data.constant,
+      });
       setItemId(data.itemId);
       // Handle both stock and non-stock services
       setServiceId(data.serviceId || data.nonStockServiceId || '');
+      setItemBaseId(data.itemBaseId || '');
     }
   }, [data]);
   
@@ -60,13 +70,17 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     if(user?.roles === 'ADMIN'){
     
     // Check if the selected service is a non-stock service
-    const isNonStockService = nonStockServices?.some(service => service.id === serviceId);
+    const hasService = !!serviceId;
+    const isNonStockService = hasService && nonStockServices?.some(service => service.id === serviceId);
     
     const data = {
       itemId,
-      ...(isNonStockService 
-        ? { nonStockServiceId: serviceId }
-        : { serviceId }
+      itemBaseId: itemBaseId || undefined,
+      ...(hasService
+        ? isNonStockService
+          ? { nonStockServiceId: serviceId, isNonStockService: true }
+          : { serviceId, isNonStockService: false }
+        : {}
       ),
       sellingPrice: parseFloat(formData.sellingPrice.toString()),
       costPrice: parseFloat(formData.costPrice.toString()),
@@ -97,6 +111,7 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 
   const handleItemChange = (value: string) => {
     setItemId(value);
+    setItemBaseId('');
   };
 
   const handleServiceChange = (value: string) => {
@@ -110,6 +125,21 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
       label: item.name
     })) || []),
     [items]
+  );
+
+  const { data: itemBases } = useGetItemBasesQuery(itemId, {
+    skip: !itemId,
+  } as { skip: boolean });
+
+  const itemBaseOptions = useMemo(
+    () =>
+      (itemBases as ItemBaseType[] | undefined)?.map((base) => ({
+        value: base.id,
+        label: base.addPower
+          ? `${base.baseCode}^+${base.addPower}`
+          : base.baseCode,
+      })) || [],
+    [itemBases]
   );
 
 
@@ -182,9 +212,21 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
                     border="border-stroke"
                     title="Select item"
                   />
+                  {itemBaseOptions.length > 0 && (
+                    <SelectOptions
+                      options={itemBaseOptions}
+                      defaultOptionText="Select base (optional)"
+                      selectedOption={itemBaseId}
+                      onOptionChange={setItemBaseId}
+                      containerMargin="mb-4.5"
+                      labelMargin="mb-3"
+                      border="border-stroke"
+                      title="Select base"
+                    />
+                  )}
                   <SelectOptions
                     options={servicesOptions}
-                    defaultOptionText="Select service"
+                    defaultOptionText="Select service (optional)"
                     selectedOption={serviceId}
                     onOptionChange={handleServiceChange}
                     containerMargin="mb-4.5"

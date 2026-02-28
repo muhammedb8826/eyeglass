@@ -6,11 +6,12 @@ import SelectOptions from "@/common/SelectOptions";
 import ErroPage from "../common/ErroPage";
 import Loader from "@/common/Loader";
 import { useCreatePricingMutation } from "@/redux/pricing/pricingApiSlice";
-import { useGetAllItemsQuery } from "@/redux/items/itemsApiSlice";
+import { useGetAllItemsQuery, useGetItemBasesQuery } from "@/redux/items/itemsApiSlice";
 import { useGetAllServicesQuery } from "@/redux/services/servicesApiSlice";
 import { useGetAllNonStockServicesQuery } from "@/redux/services/nonStockServicesApiSlice";
 import { useSelector } from "react-redux";
 import { selectCurrentUser } from "@/redux/authSlice";
+import { ItemBaseType } from "@/types/ItemBaseType";
 
 interface ErrorData {
   message: string;
@@ -28,6 +29,7 @@ export const PricingRegistration = ({ handleModalOpen }: PricingRegistrationProp
   const { data: nonStockServices, isLoading: isNonStockServicesLoading } = useGetAllNonStockServicesQuery();
 
   const [itemId, setItemId] = useState<string>('');
+  const [itemBaseId, setItemBaseId] = useState<string>('');
   const [serviceId, setServiceId] = useState<string>('');
 
   const [formData, setFormData] = useState({
@@ -53,13 +55,17 @@ export const PricingRegistration = ({ handleModalOpen }: PricingRegistrationProp
     if(user?.roles === 'ADMIN'){
 
     // Check if the selected service is a non-stock service
-    const isNonStockService = nonStockServices?.some(service => service.id === serviceId);
+    const hasService = !!serviceId;
+    const isNonStockService = hasService && nonStockServices?.some(service => service.id === serviceId);
     
     const data = {
       itemId,
-      ...(isNonStockService 
-        ? { nonStockServiceId: serviceId }
-        : { serviceId }
+      itemBaseId: itemBaseId || undefined,
+      ...(hasService
+        ? isNonStockService
+          ? { nonStockServiceId: serviceId, isNonStockService: true }
+          : { serviceId, isNonStockService: false }
+        : {}
       ),
       sellingPrice: parseFloat(formData.sellingPrice.toString()),
       costPrice: parseFloat(formData.costPrice.toString()),
@@ -67,7 +73,7 @@ export const PricingRegistration = ({ handleModalOpen }: PricingRegistrationProp
       width: parseFloat(formData.width.toString()),
       height: parseFloat(formData.height.toString()),
       constant: formData.constant
-    }
+    };
     
     console.log('Creating pricing with data:', data);
     console.log('Selected serviceId:', serviceId);
@@ -95,6 +101,7 @@ export const PricingRegistration = ({ handleModalOpen }: PricingRegistrationProp
 
   const handleItemChange = (value: string) => {
     setItemId(value);
+    setItemBaseId('');
   };
 
   const handleServiceChange = (value: string) => {
@@ -108,6 +115,21 @@ export const PricingRegistration = ({ handleModalOpen }: PricingRegistrationProp
       label: item.name
     })) || []),
     [items]
+  );
+
+  const { data: itemBases } = useGetItemBasesQuery(itemId, {
+    skip: !itemId,
+  } as { skip: boolean });
+
+  const itemBaseOptions = useMemo(
+    () =>
+      (itemBases as ItemBaseType[] | undefined)?.map((base) => ({
+        value: base.id,
+        label: base.addPower
+          ? `${base.baseCode}^+${base.addPower}`
+          : base.baseCode,
+      })) || [],
+    [itemBases]
   );
 
   const servicesOptions = useMemo(
@@ -178,9 +200,21 @@ export const PricingRegistration = ({ handleModalOpen }: PricingRegistrationProp
                     border="border-stroke"
                     title="Select item"
                   />
+                  {itemBaseOptions.length > 0 && (
+                    <SelectOptions
+                      options={itemBaseOptions}
+                      defaultOptionText="Select base (optional)"
+                      selectedOption={itemBaseId}
+                      onOptionChange={setItemBaseId}
+                      containerMargin="mb-4.5"
+                      labelMargin="mb-3"
+                      border="border-stroke"
+                      title="Select base"
+                    />
+                  )}
                   <SelectOptions
                     options={servicesOptions}
-                    defaultOptionText="Select service"
+                    defaultOptionText="Select service (optional)"
                     selectedOption={serviceId}
                     onOptionChange={handleServiceChange}
                     containerMargin="mb-4.5"
