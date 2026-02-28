@@ -3,6 +3,7 @@ import { OrderItemNotes } from "./OrderItemNotes";
 import { OrderType } from "./OrderType";
 import { ServiceType } from "./ServiceType";
 import { UoMType } from "./UomType";
+import { ItemBaseType } from "./ItemBaseType";
 
 export interface OrderItemType {
     id: string;
@@ -60,4 +61,7 @@ export interface OrderItemType {
 
     prismRight?: number;
     prismLeft?: number;
+
+    itemBaseId?: string;
+    itemBase?: ItemBaseType;
 }

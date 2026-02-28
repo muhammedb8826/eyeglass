@@ -16,6 +16,7 @@ import SelectOptions from "@/common/SelectOptions";
 import { SalesPartnerType } from "@/types/SalesPartnerType";
 import { useGetAllCustomersQuery } from "@/redux/customer/customerApiSlice";
 import { ItemType } from "@/types/ItemType";
+import { ItemBaseType } from "@/types/ItemBaseType";
 import { OrderItemType } from "@/types/OrderItemType";
 import { OrderType } from "@/types/OrderType";
 import { useCreateOrderMutation, useGetAllOrdersQuery } from "@/redux/order/orderApiSlice";
@@ -28,6 +29,24 @@ import { useGetAllNonStockServicesQuery } from "@/redux/services/nonStockService
 import { PricingType } from "@/types/PricingType";
 import { useGetAllDiscountsQuery } from "@/redux/discount/discountApiSlice";
 import { handleApiError } from "@/utils/errorHandling";
+
+interface RxCalcRow {
+  distanceSphereRight: string;
+  nearSphereRight: string;
+  distanceSphereLeft: string;
+  nearSphereLeft: string;
+}
+
+interface ItemOrderInfoResponse {
+  pricing?: {
+    id: string;
+    sellingPrice: number;
+    baseUomId?: string;
+  } | null;
+  item?: {
+    defaultUomId?: string;
+  } | null;
+}
 
 const date = new Date();
 const formattedDate = date.toISOString().split('T')[0];
@@ -143,6 +162,66 @@ export const OrderRegistration = () => {
   const [forcePayment, setForcePayment] = useState(true);
 
   const [activeRxRow, setActiveRxRow] = useState<number | null>(null);
+  const [itemBasesMap, setItemBasesMap] = useState<Record<string, ItemBaseType[]>>({});
+
+  const [rxCalcRows, setRxCalcRows] = useState<RxCalcRow[]>([
+    {
+      distanceSphereRight: "",
+      nearSphereRight: "",
+      distanceSphereLeft: "",
+      nearSphereLeft: "",
+    },
+  ]);
+
+  const fetchOrderInfoForRow = (
+    rowIndex: number,
+    itemId: string,
+    itemBaseId?: string,
+  ) => {
+    if (!itemId) return;
+
+    const params = new URLSearchParams();
+    if (itemBaseId) {
+      params.set("itemBaseId", itemBaseId);
+    }
+
+    const query = params.toString();
+    const url = `/api/v1/items/${itemId}/order-info${query ? `?${query}` : ""}`;
+
+    fetch(url)
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((info: ItemOrderInfoResponse) => {
+        const pricing = info?.pricing;
+        if (!pricing) {
+          toast.error("No pricing configured for the selected lens and base.");
+          return;
+        }
+
+        setFormData((prevFormData) => {
+          const updatedFormData = [...prevFormData];
+          const row = updatedFormData[rowIndex];
+          if (!row || row.itemId !== itemId) {
+            return prevFormData;
+          }
+
+          updatedFormData[rowIndex] = {
+            ...row,
+            pricingId: pricing.id,
+            unitPrice:
+              typeof pricing.sellingPrice === "number"
+                ? pricing.sellingPrice
+                : row.unitPrice,
+            baseUomId: pricing.baseUomId || row.baseUomId,
+            uomId: row.uomId || info.item?.defaultUomId || row.uomId,
+          };
+
+          return updatedFormData;
+        });
+      })
+      .catch(() => {
+        // Ignore network / backend errors; user can still proceed with manual pricing
+      });
+  };
 
   const [activeTabId, setActiveTabId] = useState<string>('general');
   const handleTabChange = (id: string) => {
@@ -226,6 +305,16 @@ export const OrderRegistration = () => {
         unit: 0,
         baseUomId: "",
       }
+    ]);
+
+    setRxCalcRows((prev) => [
+      ...prev,
+      {
+        distanceSphereRight: "",
+        nearSphereRight: "",
+        distanceSphereLeft: "",
+        nearSphereLeft: "",
+      },
     ]);
 
     setCommissionTransactions((prev) => [
@@ -327,7 +416,25 @@ export const OrderRegistration = () => {
         unit: 0, // Reset unit
         description: "", // Reset description
         isDiscounted: false, // Reset discount flag
+        itemBaseId: undefined,
       };
+
+      if (selectedItem.id && !(selectedItem.id in itemBasesMap)) {
+        fetch(`/api/v1/items/${selectedItem.id}/bases`)
+          .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+          .then((bases: ItemBaseType[]) => {
+            setItemBasesMap((prev) => ({
+              ...prev,
+              [selectedItem.id]: bases,
+            }));
+          })
+          .catch(() => {
+            // Bases are optional; ignore errors
+          });
+      }
+
+      // Fetch order info (pricing, tool) for item-only lines
+      fetchOrderInfoForRow(index, selectedItem.id);
 
       setFormData(updatedFormData);
     }
@@ -515,6 +622,64 @@ export const OrderRegistration = () => {
     });
   };
 
+  const handleRxCalcChange = (
+    index: number,
+    field: keyof RxCalcRow,
+    value: string,
+  ) => {
+    setRxCalcRows((prev) => {
+      const next = [...prev];
+      next[index] = {
+        ...next[index],
+        [field]: value,
+      };
+      return next;
+    });
+
+    setFormData((prevFormData) => {
+      const updatedFormData = [...prevFormData];
+      const row = rxCalcRows[index] || {
+        distanceSphereRight: "",
+        nearSphereRight: "",
+        distanceSphereLeft: "",
+        nearSphereLeft: "",
+      };
+      const updatedRow = {
+        ...row,
+        [field]: value,
+      };
+
+      const parse = (v: string) => {
+        const n = parseFloat(v);
+        return isNaN(n) ? undefined : n;
+      };
+
+      // Right eye ADD
+      const distR = parse(updatedRow.distanceSphereRight);
+      const nearR = parse(updatedRow.nearSphereRight);
+      if (distR !== undefined && nearR !== undefined) {
+        const addR = nearR - distR;
+        updatedFormData[index] = {
+          ...updatedFormData[index],
+          addRight: Number(addR.toFixed(2)),
+        };
+      }
+
+      // Left eye ADD
+      const distL = parse(updatedRow.distanceSphereLeft);
+      const nearL = parse(updatedRow.nearSphereLeft);
+      if (distL !== undefined && nearL !== undefined) {
+        const addL = nearL - distL;
+        updatedFormData[index] = {
+          ...updatedFormData[index],
+          addLeft: Number(addL.toFixed(2)),
+        };
+      }
+
+      return updatedFormData;
+    });
+  };
+
 
   const handleUnitChange = (index: number, value: string) => {
     setFormData((prevFormData) => {
@@ -603,6 +768,7 @@ export const OrderRegistration = () => {
     const updatedCommission = [...commissionTransactions];
     const filteredCommission = updatedCommission.filter((_, i) => i !== index);
     setCommissionTransactions(filteredCommission);
+    setRxCalcRows((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleCancelPayment = (index: number) => {
@@ -816,14 +982,17 @@ export const OrderRegistration = () => {
 
     const ordeItemData = formData.map((data) => {
       // Check if the service is a non-stock service
-      const isNonStockService = nonStockServices?.some(service => service.id === data.serviceId);
+    const hasService = !!data.serviceId;
+    const isNonStockService = hasService && nonStockServices?.some(service => service.id === data.serviceId);
       
       return {
         id: data.id,
         itemId: data.itemId,
-        ...(isNonStockService 
-          ? { nonStockServiceId: data.serviceId, isNonStockService: true }
-          : { serviceId: data.serviceId, isNonStockService: false }
+        ...(hasService
+          ? isNonStockService
+            ? { nonStockServiceId: data.serviceId, isNonStockService: true }
+            : { serviceId: data.serviceId, isNonStockService: false }
+          : {}
         ),
         width: data.width,
         height: data.height,
@@ -1257,6 +1426,36 @@ export const OrderRegistration = () => {
                                           Right eye (OD)
                                         </p>
                                         <div className="space-y-2">
+                                          <div className="grid grid-cols-2 gap-2">
+                                            <input
+                                              type="number"
+                                              step="0.01"
+                                              placeholder="Distance SPH (for ADD)"
+                                              className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                              value={rxCalcRows[index]?.distanceSphereRight ?? ""}
+                                              onChange={(e) =>
+                                                handleRxCalcChange(
+                                                  index,
+                                                  "distanceSphereRight",
+                                                  e.target.value,
+                                                )
+                                              }
+                                            />
+                                            <input
+                                              type="number"
+                                              step="0.01"
+                                              placeholder="Near SPH (for ADD)"
+                                              className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                              value={rxCalcRows[index]?.nearSphereRight ?? ""}
+                                              onChange={(e) =>
+                                                handleRxCalcChange(
+                                                  index,
+                                                  "nearSphereRight",
+                                                  e.target.value,
+                                                )
+                                              }
+                                            />
+                                          </div>
                                           <input
                                             type="number"
                                             step="0.01"
@@ -1316,6 +1515,36 @@ export const OrderRegistration = () => {
                                           Left eye (OS)
                                         </p>
                                         <div className="space-y-2">
+                                          <div className="grid grid-cols-2 gap-2">
+                                            <input
+                                              type="number"
+                                              step="0.01"
+                                              placeholder="Distance SPH (for ADD)"
+                                              className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                              value={rxCalcRows[index]?.distanceSphereLeft ?? ""}
+                                              onChange={(e) =>
+                                                handleRxCalcChange(
+                                                  index,
+                                                  "distanceSphereLeft",
+                                                  e.target.value,
+                                                )
+                                              }
+                                            />
+                                            <input
+                                              type="number"
+                                              step="0.01"
+                                              placeholder="Near SPH (for ADD)"
+                                              className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                              value={rxCalcRows[index]?.nearSphereLeft ?? ""}
+                                              onChange={(e) =>
+                                                handleRxCalcChange(
+                                                  index,
+                                                  "nearSphereLeft",
+                                                  e.target.value,
+                                                )
+                                              }
+                                            />
+                                          </div>
                                           <input
                                             type="number"
                                             step="0.01"
@@ -1420,6 +1649,36 @@ export const OrderRegistration = () => {
                                           Lens details
                                         </p>
                                         <div className="space-y-2">
+                                          {data.itemId && itemBasesMap[data.itemId] && itemBasesMap[data.itemId].length > 0 && (
+                                            <select
+                                              className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                              value={data.itemBaseId || ""}
+                                              onChange={(e) =>
+                                                setFormData((prevFormData) => {
+                                                  const updatedFormData = [...prevFormData];
+                                                  updatedFormData[index] = {
+                                                    ...updatedFormData[index],
+                                                    itemBaseId: e.target.value || undefined,
+                                                  };
+                                                  // Update pricing info when base changes
+                                                  fetchOrderInfoForRow(
+                                                    index,
+                                                    updatedFormData[index].itemId,
+                                                    updatedFormData[index].itemBaseId,
+                                                  );
+                                                  return updatedFormData;
+                                                })
+                                              }
+                                            >
+                                              <option value="">Select base / add</option>
+                                              {itemBasesMap[data.itemId].map((base) => (
+                                                <option key={base.id} value={base.id}>
+                                                  {base.baseCode}
+                                                  {base.addPower ? `^+${base.addPower}` : ""}
+                                                </option>
+                                              ))}
+                                            </select>
+                                          )}
                                           <input
                                             type="text"
                                             placeholder="Lens type"

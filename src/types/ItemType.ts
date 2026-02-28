@@ -1,6 +1,7 @@
 import { MachineType } from "./MachineType";
 import { ServiceType } from "./ServiceType";
 import { UoMType } from "./UomType";
+import { ItemBaseType } from "./ItemBaseType";
 
 export interface ItemType {
     id: string;
@@ -34,4 +35,5 @@ export interface ItemType {
     lensMaterial?: string;
     lensIndex?: number;
     lensType?: string;
+    itemBases?: ItemBaseType[];
 }

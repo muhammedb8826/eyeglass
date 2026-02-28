@@ -1,5 +1,6 @@
 import { apiSlice } from "@/redux/api/apiSlice";
 import { ItemType } from "@/types/ItemType";
+import { ItemBaseType } from "@/types/ItemBaseType";
 
 interface ItemResponse {
     items: ItemType[];
@@ -30,6 +31,9 @@ export const itemsApiSlice = apiSlice.injectEndpoints({
         }),
         getItem: builder.query({
             query: (id) => `/items/${id}`
+        }),
+        getItemBases: builder.query<ItemBaseType[], string>({
+            query: (id) => `/items/${id}/bases`,
         }),
         createItem: builder.mutation({
             query: (formData) => ({
@@ -65,6 +69,7 @@ export const {
     useGetItemsQuery,
     useGetAllItemsQuery,
     useGetItemQuery,
+    useGetItemBasesQuery,
     useCreateItemMutation,
     useUpdateItemMutation,
     useDeleteItemsMutation
