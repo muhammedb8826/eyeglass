@@ -8,7 +8,7 @@ import { IoMdClose } from "react-icons/io";
 import { SalesPartnerSearchInput } from "../commission/SalesPartnerSearchInput";
 import { FaChevronDown, FaChevronUp } from "react-icons/fa6";
 import Breadcrumb from "../Breadcrumb";
-import { selectCurrentUser } from "@/redux/authSlice";
+import { selectCurrentUser, selectCurrentToken } from "@/redux/authSlice";
 import { useGetAllItemsQuery } from "@/redux/items/itemsApiSlice";
 import { CustomerType } from "@/types/CustomerType";
 import Tabs from "@/common/TabComponent";
@@ -59,6 +59,7 @@ const tabs = [
 
 export const OrderRegistration = () => {
   const user = useSelector(selectCurrentUser);
+  const accessToken = useSelector(selectCurrentToken);
   const { data: items, isLoading: isItemsLoading } = useGetAllItemsQuery();
   const { data: customers, isLoading: isCustomersLoading } = useGetAllCustomersQuery({});
   const { data: orders, isLoading, isError, error } = useGetAllOrdersQuery();
@@ -171,6 +172,9 @@ export const OrderRegistration = () => {
     },
   ]);
 
+  const API_BASE_URL =
+    import.meta.env.VITE_NEST_BACKEND_URL || "https://api.ianprint.com/api/v1";
+
   const fetchOrderInfoForRow = (
     rowIndex: number,
     itemId: string,
@@ -184,11 +188,21 @@ export const OrderRegistration = () => {
     }
 
     const query = params.toString();
-    const url = `/api/v1/items/${itemId}/order-info${query ? `?${query}` : ""}`;
+    const url = `${API_BASE_URL}/items/${itemId}/order-info${
+      query ? `?${query}` : ""
+    }`;
 
-    fetch(url)
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+    if (accessToken) {
+      headers["Authorization"] = `Bearer ${accessToken}`;
+    }
+
+    fetch(url, { headers })
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((info: ItemOrderInfoResponse) => {
+      .then((response: ItemOrderInfoResponse & { data?: ItemOrderInfoResponse }) => {
+        const info = response?.data ?? response;
         const pricing = info?.pricing;
         if (!pricing) {
           toast.error("No pricing configured for the selected lens and base.");
@@ -831,6 +845,10 @@ export const OrderRegistration = () => {
       // Check if the service is a non-stock service
     const hasService = !!data.serviceId;
     const isNonStockService = hasService && nonStockServices?.some(service => service.id === data.serviceId);
+
+    const qty = parseFloat(data.quantity?.toString() || "0");
+    const unit = parseFloat(data.unitPrice?.toString() || "0");
+    const lineTotal = Math.round((qty * unit) * 100) / 100;
       
       return {
         id: data.id,
@@ -845,7 +863,7 @@ export const OrderRegistration = () => {
         height: data.height,
         discount: data.discount,
         level: data.level,
-        totalAmount: data.totalAmount,
+        totalAmount: lineTotal,
         adminApproval: data.adminApproval,
         uomId: data.uomId,
         quantity: data.quantity,

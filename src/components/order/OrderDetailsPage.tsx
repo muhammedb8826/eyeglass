@@ -1,6 +1,6 @@
 import ErroPage from "../common/ErroPage";
 import { Link, useParams } from "react-router-dom";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
 import CustomerSearchInput from "../customer/CustomerSearchInput";
@@ -45,6 +45,13 @@ const date = new Date();
 const formattedDate = date.toISOString().split("T")[0];
 
 type PaymentTransactionUI = Omit<PaymentTransactionsType, 'date'> & { date: string };
+
+interface RxCalcRow {
+  distanceSphereRight: string;
+  nearSphereRight: string;
+  distanceSphereLeft: string;
+  nearSphereLeft: string;
+}
 
 const tabs = [
   { id: "general", label: "General" },
@@ -155,6 +162,15 @@ export const OrderDetailsPage = () => {
   const [userInputDiscount, setUserInputDiscount] = useState("");
   const [collapseDisount, setCollapseDiscount] = useState(false);
   const [totaTransaction, setTotalTransaction] = useState(0);
+  const [activeRxRow, setActiveRxRow] = useState<number | null>(null);
+  const [rxCalcRows, setRxCalcRows] = useState<RxCalcRow[]>([
+    {
+      distanceSphereRight: "",
+      nearSphereRight: "",
+      distanceSphereLeft: "",
+      nearSphereLeft: "",
+    },
+  ]);
   const [remainingAmount, setRemainingAmount] = useState(0);
   const [totalCommission, setTotalCommission] = useState(0);
   const [forcePayment, setForcePayment] = useState(true);
@@ -193,6 +209,14 @@ export const OrderDetailsPage = () => {
             false,
           uomsOptions:
             items?.find((i) => i.id === item.itemId)?.unitCategory?.uoms || [],
+        }))
+      );
+      setRxCalcRows(
+        order.orderItems.map(() => ({
+          distanceSphereRight: "",
+          nearSphereRight: "",
+          distanceSphereLeft: "",
+          nearSphereLeft: "",
         }))
       );
       setFileName(order.fileNames || []);
@@ -426,6 +450,15 @@ export const OrderDetailsPage = () => {
         reference: "",
         description: "",
         status: "pending",
+      },
+    ]);
+    setRxCalcRows((prev) => [
+      ...prev,
+      {
+        distanceSphereRight: "",
+        nearSphereRight: "",
+        distanceSphereLeft: "",
+        nearSphereLeft: "",
       },
     ]);
   };
@@ -728,58 +761,6 @@ export const OrderDetailsPage = () => {
     return 0;
   };
 
-  const handleInputChanges = (
-    index: number,
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const item = formData[index];
-    if (
-      item.status !== "Edited" &&
-      item.status !== "Received" &&
-      item.status !== "Rejected"
-    ) {
-      toast.error("You cannot edit this item because it has been approved");
-      return;
-    }
-    const { name, value } = e.target;
-
-    setFormData((prevFormData) => {
-      const updatedFormData = [...prevFormData];
-      updatedFormData[index] = {
-        ...updatedFormData[index],
-        [name]: value,
-      };
-
-      const width = parseFloat(updatedFormData[index].width);
-      const height = parseFloat(updatedFormData[index].height);
-      const quantity = parseFloat(updatedFormData[index].quantity.toString());
-
-      if (!isNaN(width) && !isNaN(height) && !isNaN(quantity)) {
-        const selectedItem = items?.find(
-          (item) => item.id === updatedFormData[index].itemId
-        );
-
-        if (selectedItem) {
-          updatedFormData[index].unitPrice = parseFloat(
-            calculateUnitPrice(
-              updatedFormData[index],
-              selectedItem,
-              index
-            )?.toString() || "0"
-          );
-          updatedFormData[index].totalAmount = parseFloat(
-            calculateUnitPrice(
-              updatedFormData[index],
-              selectedItem,
-              index
-            )?.toString() || "0"
-          );
-        }
-      }
-      return updatedFormData;
-    });
-  };
-
   const handleUnitChange = (index: number, value: string) => {
     const item = formData[index];
     if (
@@ -916,6 +897,102 @@ export const OrderDetailsPage = () => {
         }
       }
 
+      // Always update line total from quantity × unit price (e.g. for lens items with fixed unit price)
+      const qty = parseFloat(updatedFormData[index].quantity?.toString() || "0");
+      const unit = parseFloat(updatedFormData[index].unitPrice?.toString() || "0");
+      updatedFormData[index].totalAmount = Math.round((qty * unit) * 100) / 100;
+
+      return updatedFormData;
+    });
+  };
+
+  const handleRxNumberChange = (
+    index: number,
+    field: keyof OrderItemType,
+    value: string,
+  ) => {
+    setFormData((prevFormData) => {
+      const updatedFormData = [...prevFormData];
+      updatedFormData[index] = {
+        ...updatedFormData[index],
+        [field]: value === "" ? undefined : Number(value),
+      };
+      return updatedFormData;
+    });
+  };
+
+  const handleRxTextChange = (
+    index: number,
+    field: keyof OrderItemType,
+    value: string,
+  ) => {
+    setFormData((prevFormData) => {
+      const updatedFormData = [...prevFormData];
+      updatedFormData[index] = {
+        ...updatedFormData[index],
+        [field]: value || undefined,
+      };
+      return updatedFormData;
+    });
+  };
+
+  const handleRxCalcChange = (
+    index: number,
+    field: keyof RxCalcRow,
+    value: string,
+  ) => {
+    setRxCalcRows((prev) => {
+      const next = [...prev];
+      next[index] = {
+        ...(next[index] || {
+          distanceSphereRight: "",
+          nearSphereRight: "",
+          distanceSphereLeft: "",
+          nearSphereLeft: "",
+        }),
+        [field]: value,
+      };
+      return next;
+    });
+
+    setFormData((prevFormData) => {
+      const updatedFormData = [...prevFormData];
+      const row = rxCalcRows[index] || {
+        distanceSphereRight: "",
+        nearSphereRight: "",
+        distanceSphereLeft: "",
+        nearSphereLeft: "",
+      };
+      const updatedRow = {
+        ...row,
+        [field]: value,
+      };
+
+      const parse = (v: string) => {
+        const n = parseFloat(v);
+        return isNaN(n) ? undefined : n;
+      };
+
+      const distR = parse(updatedRow.distanceSphereRight);
+      const nearR = parse(updatedRow.nearSphereRight);
+      if (distR !== undefined && nearR !== undefined) {
+        const addR = nearR - distR;
+        updatedFormData[index] = {
+          ...updatedFormData[index],
+          addRight: Number(addR.toFixed(2)),
+        };
+      }
+
+      const distL = parse(updatedRow.distanceSphereLeft);
+      const nearL = parse(updatedRow.nearSphereLeft);
+      if (distL !== undefined && nearL !== undefined) {
+        const addL = nearL - distL;
+        updatedFormData[index] = {
+          ...updatedFormData[index],
+          addLeft: Number(addL.toFixed(2)),
+        };
+      }
+
       return updatedFormData;
     });
   };
@@ -946,6 +1023,7 @@ export const OrderDetailsPage = () => {
     const updatedCommission = [...commissionTransactions];
     const filteredCommission = updatedCommission.filter((_, i) => i !== index);
     setCommissionTransactions(filteredCommission);
+    setRxCalcRows((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleCancelPayment = (index: number) => {
@@ -960,7 +1038,9 @@ export const OrderDetailsPage = () => {
 
   useEffect(() => {
     const totalAmount = formData.reduce((acc, c) => {
-      const totalPrice = parseFloat(c.totalAmount?.toString() || "0");
+      const qty = parseFloat(c.quantity?.toString() || "0");
+      const unit = parseFloat(c.unitPrice?.toString() || "0");
+      const totalPrice = qty * unit;
       return acc + totalPrice;
     }, 0);
 
@@ -1233,7 +1313,11 @@ export const OrderDetailsPage = () => {
     const ordeItemData = formData.map((data) => {
       // Check if the service is a non-stock service
       const isNonStockService = nonStockServices?.some(service => service.id === data.serviceId);
-      
+
+      const qty = parseFloat(data.quantity?.toString() || "0");
+      const unit = parseFloat(data.unitPrice?.toString() || "0");
+      const lineTotal = Math.round((qty * unit) * 100) / 100;
+
       return {
         itemId: data.itemId,
         ...(isNonStockService 
@@ -1244,7 +1328,7 @@ export const OrderDetailsPage = () => {
         height: data.height,
         discount: data.discount,
         level: data.level,
-        totalAmount: data.totalAmount,
+        totalAmount: lineTotal,
         adminApproval: data.adminApproval,
         uomId: data.uomId,
         quantity: data.quantity,
@@ -1257,6 +1341,28 @@ export const OrderDetailsPage = () => {
         unit: data.unit,
         pricingId: data.pricingId,
         baseUomId: data.baseUomId,
+        // Rx / prescription fields
+        sphereRight: data.sphereRight,
+        sphereLeft: data.sphereLeft,
+        cylinderRight: data.cylinderRight,
+        cylinderLeft: data.cylinderLeft,
+        axisRight: data.axisRight,
+        axisLeft: data.axisLeft,
+        addRight: data.addRight,
+        addLeft: data.addLeft,
+        pd: data.pd,
+        pdMonocularRight: data.pdMonocularRight,
+        pdMonocularLeft: data.pdMonocularLeft,
+        prismRight: data.prismRight,
+        prismLeft: data.prismLeft,
+        lensType: data.lensType,
+        lensMaterial: data.lensMaterial,
+        lensCoating: data.lensCoating,
+        lensIndex: data.lensIndex,
+        baseCurve: data.baseCurve,
+        diameter: data.diameter,
+        tintColor: data.tintColor,
+        itemBaseId: data.itemBaseId,
       };
     });
 
@@ -1383,9 +1489,6 @@ export const OrderDetailsPage = () => {
                 <th className="min-w-[100px] py-4 px-4 font-medium text-black dark:text-white">
                   Qty
                 </th>
-                <th className="min-w-[100px] py-4 px-4 font-medium text-black dark:text-white">
-                  Size
-                </th>
                 <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
                   Unit Price
                 </th>
@@ -1397,7 +1500,7 @@ export const OrderDetailsPage = () => {
             <tbody>
               {formData && formData.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-center text-black dark:text-white">
+                  <td colSpan={6} className="text-center text-black dark:text-white">
                     No data found
                   </td>
                 </tr>
@@ -1413,14 +1516,11 @@ export const OrderDetailsPage = () => {
                     </td>
                     <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
                       {services?.find((service) => service.id === data.serviceId)?.name || 
-                       nonStockServices?.find((service) => service.id === data.serviceId)?.name || 
+                       nonStockServices?.find(service => service.id === data.serviceId)?.name || 
                        ""}
                     </td>
                     <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
                       {data.quantity}
-                    </td>
-                    <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
-                      {data.width && data.height ? `${data.width} x ${data.height}` : "-"}
                     </td>
                     <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
                       {Number(data.unitPrice || 0).toFixed(2)}
@@ -1597,14 +1697,11 @@ export const OrderDetailsPage = () => {
                               <th className="min-w-[100px] py-4 px-4 font-medium text-black dark:text-white">
                                 Quantity
                               </th>
-                              <th className="min-w-[100px] py-4 px-4 font-medium text-black dark:text-white">
-                                Width
-                              </th>
-                              <th className="min-w-[100px] py-4 px-4 font-medium text-black dark:text-white">
-                                Height
-                              </th>
                               <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
                                 U.Price
+                              </th>
+                              <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                Rx
                               </th>
                               <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
                                 Status
@@ -1620,14 +1717,15 @@ export const OrderDetailsPage = () => {
                           <tbody>
                             {formData && formData.length === 0 && (
                               <tr>
-                                <td colSpan={7} className="text-center text-black dark:text-white">
+                                <td colSpan={9} className="text-center text-black dark:text-white">
                                   No data found
                                 </td>
                               </tr>
                             )}
                             {formData &&
                               updatedFormData.map((data, index) => (
-                                <tr key={index}>
+                              <Fragment key={index}>
+                                <tr>
                                   <td className="border-b text-graydark dark:text-white border-stroke py-2 px-4 dark:border-strokedark">
                                     {index + 1}
                                   </td>
@@ -1698,41 +1796,18 @@ export const OrderDetailsPage = () => {
                                     />
                                   </td>
                                   <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
-                                    <input
-                                      title="width"
-                                      type="number"
-                                      name="width"
-                                      id="width"
-                                      onChange={(e) =>
-                                        handleInputChanges(index, e)
-                                      }
-                                      value={data.width}
-                                      className="w-full rounded bg-transparent px-2 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-                                      required
-                                      min={0}
-                                      step={"any"}
-                                      disabled={!data.constant}
-                                    />
-                                  </td>
-                                  <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
-                                    <input
-                                      title="height"
-                                      type="number"
-                                      name="height"
-                                      id="height"
-                                      onChange={(e) =>
-                                        handleInputChanges(index, e)
-                                      }
-                                      value={data.height}
-                                      className="w-full rounded bg-transparent px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-                                      required
-                                      min={0}
-                                      step={"any"}
-                                      disabled={!data.constant}
-                                    />
-                                  </td>
-                                  <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
                                     {Number(data.unitPrice || 0).toFixed(2)}
+                                  </td>
+                                  <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
+                                    <button
+                                      type="button"
+                                      className="rounded border border-stroke px-2 py-1 text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-700"
+                                      onClick={() =>
+                                        setActiveRxRow((prev) => (prev === index ? null : index))
+                                      }
+                                    >
+                                      {activeRxRow === index ? "Hide Rx" : "Edit Rx"}
+                                    </button>
                                   </td>
                                   <td className="px-4 py-2 border border-stroke dark:border-strokedark">
                                     {order && (
@@ -1854,7 +1929,291 @@ export const OrderDetailsPage = () => {
                                     {/* <!-- Dropdown End --> */}
                                   </td>
                                 </tr>
-                              ))}
+                              {activeRxRow === index && (
+                                <tr>
+                                  <td
+                                    colSpan={9}
+                                    className="bg-gray-50 dark:bg-boxdark p-4 border border-t-0 border-stroke dark:border-strokedark"
+                                  >
+                                    <div className="grid gap-4 md:grid-cols-4">
+                                      <div>
+                                        <p className="mb-2 text-xs font-semibold text-black dark:text-white">
+                                          Right eye (OD)
+                                        </p>
+                                        <div className="space-y-2">
+                                          <div className="grid grid-cols-2 gap-2">
+                                            <input
+                                              type="number"
+                                              step="0.01"
+                                              placeholder="Distance SPH (for ADD)"
+                                              className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                              value={rxCalcRows[index]?.distanceSphereRight ?? ""}
+                                              onChange={(e) =>
+                                                handleRxCalcChange(index, "distanceSphereRight", e.target.value)
+                                              }
+                                            />
+                                            <input
+                                              type="number"
+                                              step="0.01"
+                                              placeholder="Near SPH (for ADD)"
+                                              className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                              value={rxCalcRows[index]?.nearSphereRight ?? ""}
+                                              onChange={(e) =>
+                                                handleRxCalcChange(index, "nearSphereRight", e.target.value)
+                                              }
+                                            />
+                                          </div>
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="Sphere (SPH)"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.sphereRight ?? ""}
+                                            onChange={(e) =>
+                                              handleRxNumberChange(index, "sphereRight", e.target.value)
+                                            }
+                                          />
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="Cylinder (CYL)"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.cylinderRight ?? ""}
+                                            onChange={(e) =>
+                                              handleRxNumberChange(index, "cylinderRight", e.target.value)
+                                            }
+                                          />
+                                          <input
+                                            type="number"
+                                            step="1"
+                                            min={0}
+                                            max={180}
+                                            placeholder="Axis (AX)"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.axisRight ?? ""}
+                                            onChange={(e) =>
+                                              handleRxNumberChange(index, "axisRight", e.target.value)
+                                            }
+                                          />
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="Add (ADD)"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.addRight ?? ""}
+                                            onChange={(e) =>
+                                              handleRxNumberChange(index, "addRight", e.target.value)
+                                            }
+                                          />
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="Prism"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.prismRight ?? ""}
+                                            onChange={(e) =>
+                                              handleRxNumberChange(index, "prismRight", e.target.value)
+                                            }
+                                          />
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <p className="mb-2 text-xs font-semibold text-black dark:text-white">
+                                          Left eye (OS)
+                                        </p>
+                                        <div className="space-y-2">
+                                          <div className="grid grid-cols-2 gap-2">
+                                            <input
+                                              type="number"
+                                              step="0.01"
+                                              placeholder="Distance SPH (for ADD)"
+                                              className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                              value={rxCalcRows[index]?.distanceSphereLeft ?? ""}
+                                              onChange={(e) =>
+                                                handleRxCalcChange(index, "distanceSphereLeft", e.target.value)
+                                              }
+                                            />
+                                            <input
+                                              type="number"
+                                              step="0.01"
+                                              placeholder="Near SPH (for ADD)"
+                                              className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                              value={rxCalcRows[index]?.nearSphereLeft ?? ""}
+                                              onChange={(e) =>
+                                                handleRxCalcChange(index, "nearSphereLeft", e.target.value)
+                                              }
+                                            />
+                                          </div>
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="Sphere (SPH)"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.sphereLeft ?? ""}
+                                            onChange={(e) =>
+                                              handleRxNumberChange(index, "sphereLeft", e.target.value)
+                                            }
+                                          />
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="Cylinder (CYL)"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.cylinderLeft ?? ""}
+                                            onChange={(e) =>
+                                              handleRxNumberChange(index, "cylinderLeft", e.target.value)
+                                            }
+                                          />
+                                          <input
+                                            type="number"
+                                            step="1"
+                                            min={0}
+                                            max={180}
+                                            placeholder="Axis (AX)"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.axisLeft ?? ""}
+                                            onChange={(e) =>
+                                              handleRxNumberChange(index, "axisLeft", e.target.value)
+                                            }
+                                          />
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="Add (ADD)"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.addLeft ?? ""}
+                                            onChange={(e) =>
+                                              handleRxNumberChange(index, "addLeft", e.target.value)
+                                            }
+                                          />
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="Prism"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.prismLeft ?? ""}
+                                            onChange={(e) =>
+                                              handleRxNumberChange(index, "prismLeft", e.target.value)
+                                            }
+                                          />
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <p className="mb-2 text-xs font-semibold text-black dark:text-white">
+                                          PD
+                                        </p>
+                                        <div className="space-y-2">
+                                          <input
+                                            type="number"
+                                            step="0.1"
+                                            placeholder="Binocular PD"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.pd ?? ""}
+                                            onChange={(e) =>
+                                              handleRxNumberChange(index, "pd", e.target.value)
+                                            }
+                                          />
+                                          <input
+                                            type="number"
+                                            step="0.1"
+                                            placeholder="Monocular PD (Right)"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.pdMonocularRight ?? ""}
+                                            onChange={(e) =>
+                                              handleRxNumberChange(index, "pdMonocularRight", e.target.value)
+                                            }
+                                          />
+                                          <input
+                                            type="number"
+                                            step="0.1"
+                                            placeholder="Monocular PD (Left)"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.pdMonocularLeft ?? ""}
+                                            onChange={(e) =>
+                                              handleRxNumberChange(index, "pdMonocularLeft", e.target.value)
+                                            }
+                                          />
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <p className="mb-2 text-xs font-semibold text-black dark:text-white">
+                                          Lens details
+                                        </p>
+                                        <div className="space-y-2">
+                                          <input
+                                            type="text"
+                                            placeholder="Lens type"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.lensType || ""}
+                                            onChange={(e) =>
+                                              handleRxTextChange(index, "lensType", e.target.value)
+                                            }
+                                          />
+                                          <input
+                                            type="text"
+                                            placeholder="Lens material"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.lensMaterial || ""}
+                                            onChange={(e) =>
+                                              handleRxTextChange(index, "lensMaterial", e.target.value)
+                                            }
+                                          />
+                                          <input
+                                            type="text"
+                                            placeholder="Lens coating"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.lensCoating || ""}
+                                            onChange={(e) =>
+                                              handleRxTextChange(index, "lensCoating", e.target.value)
+                                            }
+                                          />
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="Lens index"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.lensIndex ?? ""}
+                                            onChange={(e) =>
+                                              handleRxNumberChange(index, "lensIndex", e.target.value)
+                                            }
+                                          />
+                                          <input
+                                            type="number"
+                                            step="0.1"
+                                            placeholder="Base curve"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.baseCurve ?? ""}
+                                            onChange={(e) =>
+                                              handleRxNumberChange(index, "baseCurve", e.target.value)
+                                            }
+                                          />
+                                          <input
+                                            type="number"
+                                            step="0.1"
+                                            placeholder="Diameter"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.diameter ?? ""}
+                                            onChange={(e) =>
+                                              handleRxNumberChange(index, "diameter", e.target.value)
+                                            }
+                                          />
+                                          <input
+                                            type="text"
+                                            placeholder="Tint color"
+                                            className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                            value={data.tintColor || ""}
+                                            onChange={(e) =>
+                                              handleRxTextChange(index, "tintColor", e.target.value)
+                                            }
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                              </Fragment>
+                            ))}
                           </tbody>
                         </table>
                       </div>
@@ -2195,7 +2554,7 @@ export const OrderDetailsPage = () => {
                             </td>
                           </tr>
                         )}
-                        {formData.map((data, index) => (
+                        {updatedFormData.map((data, index) => (
                           <tr key={index}>
                             <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
                               {index + 1}
@@ -2345,7 +2704,7 @@ export const OrderDetailsPage = () => {
                                 </td>
                               </tr>
                             )}
-                            {formData.map((data, index) => (
+                            {updatedFormData.map((data, index) => (
                               <tr key={index}>
                                 <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
                                   {index + 1}
