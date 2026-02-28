@@ -118,7 +118,8 @@ export const apiSlice = createApi({
         'FilePaths',
         'Services',
         'NonStockServices',
-        'Account'
+        'Account',
+        'Bincard'
     ],
     endpoints: (builder) => ({
         signup: builder.mutation({

@@ -15,6 +15,7 @@ import userImage from "../../assets/images/avatar.jpg";
 import Tabs from "@/common/TabComponent";
 import { useGetAllUnitsQuery } from "@/redux/unit/unitApiSlice";
 import { UoMType } from "@/types/UomType";
+import { BincardTable } from "@/components/bincard/BincardTable";
 
 interface ErrorData {
   message: string;
@@ -32,6 +33,7 @@ const canBePurchasedText = {
 const tabs = [
   { id: 'general', label: 'General' },
   { id: 'sales', label: 'Sales' },
+  { id: 'bincard', label: 'Bincard' },
 ];
 
 export const ItemEdit = () => {
@@ -420,6 +422,12 @@ export const ItemEdit = () => {
               </div>
             </div>
              )}
+
+            {activeTabId === 'bincard' && id && (
+              <div className="p-7">
+                <BincardTable itemId={id} itemName={data?.name} pageSize={20} />
+              </div>
+            )}
 
             <div className="flex items-center justify-end gap-4.5 border-t border-stroke py-4 px-6.5 dark:border-strokedark rounded-b">
               <button

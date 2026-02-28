@@ -120,7 +120,10 @@ export const Items = () => {
   const itemsListContent = items?.map((item, index) => {
     return (
       <tr key={item.id}>
-        <td className="border-b flex items-center border-[#eee] py-5 px-4 pl-9 dark:border-strokedark">
+        <td className="border-b border-[#eee] py-5 px-4 pl-9 dark:border-strokedark">
+          {item?.itemCode ?? "–"}
+        </td>
+        <td className="border-b flex items-center border-[#eee] py-5 px-4 dark:border-strokedark">
           <NavLink to={`/dashboard/inventory/items/${item.id}`}
            className="text-base font-semibold text-black dark:text-white hover:text-primary">
             {item?.name}
@@ -243,6 +246,9 @@ export const Items = () => {
           <table className="w-full table-auto">
             <thead>
               <tr className="bg-gray-2 text-left dark:bg-meta-4">
+                <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
+                  Item code
+                </th>
                 <th className="min-w-[220px] py-4 px-4 font-medium text-black dark:text-white">
                   Item name
                 </th>
