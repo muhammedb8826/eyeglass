@@ -13,6 +13,7 @@ import Breadcrumb from "../Breadcrumb";
 import {
   useGetOrderQuery,
   useUpdateOrderMutation,
+  useUpdateOrderItemMutation,
 } from "@/redux/order/orderApiSlice";
 import { useGetAllItemsQuery } from "@/redux/items/itemsApiSlice";
 import { useGetAllCustomersQuery } from "@/redux/customer/customerApiSlice";
@@ -87,6 +88,7 @@ export const OrderDetailsPage = () => {
     });
 
   const [updateOrder, { isLoading: isUpdating }] = useUpdateOrderMutation();
+  const [updateOrderItem, { isLoading: isUpdatingItem }] = useUpdateOrderItemMutation();
 
   const [fileName, setFileName] = useState<string[]>([]);
 
@@ -1300,6 +1302,30 @@ export const OrderDetailsPage = () => {
     }
   };
 
+  const handleUpdateItemStatus = async (index: number, newStatus: string) => {
+    const item = formData[index];
+    if (!item?.id || !order?.id) return;
+    setDropdownOpen(false);
+    setShowPopover(null);
+    try {
+      await updateOrderItem({
+        id: item.id,
+        orderId: order.id,
+        status: newStatus,
+      }).unwrap();
+      setFormData((prev) => {
+        const next = [...prev];
+        if (next[index]) next[index] = { ...next[index], status: newStatus };
+        return next;
+      });
+      toast.success(`Item status set to ${newStatus}`);
+    } catch (err) {
+      const fetchError = err as FetchBaseQueryError;
+      const message = handleApiError(fetchError, "Failed to update item status");
+      toast.error(message);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -1912,6 +1938,55 @@ export const OrderDetailsPage = () => {
                                               Details
                                             </Link>
                                           </li>
+                                          {!["Printed", "Completed", "Delivered", "Void"].includes(formData[index]?.status || "") && (
+                                            <li>
+                                              <button
+                                                onClick={() => handleUpdateItemStatus(index, "Printed")}
+                                                type="button"
+                                                disabled={isUpdatingItem}
+                                                className="flex items-center gap-3 text-sm font-medium px-3 py-2 rounded-md duration-300 ease-in-out hover:bg-gray-100 dark:hover:bg-meta-4 hover:text-primary lg:text-base w-full text-left disabled:opacity-50"
+                                              >
+                                                <FaPrint className="text-lg" />
+                                                Mark as Printed
+                                              </button>
+                                            </li>
+                                          )}
+                                          {formData[index]?.status === "Printed" && (
+                                            <li>
+                                              <button
+                                                onClick={() => handleUpdateItemStatus(index, "Completed")}
+                                                type="button"
+                                                disabled={isUpdatingItem}
+                                                className="flex items-center gap-3 text-sm font-medium px-3 py-2 rounded-md duration-300 ease-in-out hover:bg-gray-100 dark:hover:bg-meta-4 hover:text-primary lg:text-base w-full text-left disabled:opacity-50"
+                                              >
+                                                Mark as Completed
+                                              </button>
+                                            </li>
+                                          )}
+                                          {formData[index]?.status === "Completed" && (
+                                            <li>
+                                              <button
+                                                onClick={() => handleUpdateItemStatus(index, "Delivered")}
+                                                type="button"
+                                                disabled={isUpdatingItem}
+                                                className="flex items-center gap-3 text-sm font-medium px-3 py-2 rounded-md duration-300 ease-in-out hover:bg-gray-100 dark:hover:bg-meta-4 hover:text-primary lg:text-base w-full text-left disabled:opacity-50"
+                                              >
+                                                Mark as Delivered
+                                              </button>
+                                            </li>
+                                          )}
+                                          {!["Void", "Delivered"].includes(formData[index]?.status || "") && (
+                                            <li>
+                                              <button
+                                                onClick={() => handleUpdateItemStatus(index, "Void")}
+                                                type="button"
+                                                disabled={isUpdatingItem}
+                                                className="flex items-center gap-3 text-sm font-medium px-3 py-2 rounded-md duration-300 ease-in-out hover:bg-gray-100 dark:hover:bg-meta-4 hover:text-danger lg:text-base w-full text-left disabled:opacity-50"
+                                              >
+                                                Mark as Void
+                                              </button>
+                                            </li>
+                                          )}
                                           <li>
                                             <button
                                               onClick={() => handleCancel(index)}

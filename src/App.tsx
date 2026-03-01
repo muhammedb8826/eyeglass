@@ -9,6 +9,7 @@ import User from "./components/user/User";
 import { Items } from "./pages/inventory/Items";
 import { Vendors } from "./pages/inventory/Vendors";
 import { Machines } from "./pages/inventory/Machines";
+import { LabTools } from "./pages/inventory/LabTools";
 import { Purschase } from "./pages/inventory/Purschase";
 import { OrderRegistration } from "./components/order/OrderRegistration";
 import { PurchaseRegistration } from "./pages/inventory/PurchaseRegistration";
@@ -84,6 +85,7 @@ const App = () => {
           <Route path="inventory/items/register" element={<ItemRegistration />} />
           <Route path="inventory/items/:id" element={<ItemEdit />} />
           <Route path="inventory/machines" element={<Machines />} />
+          <Route path="inventory/lab-tools" element={<LabTools />} />
           <Route path="inventory/service" element={<ServicesList />} />
           <Route path="inventory/vendors" element={<Vendors />} />
           <Route path="inventory/purchases" element={<Purschase />} />
