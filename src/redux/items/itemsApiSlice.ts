@@ -34,6 +34,42 @@ export const itemsApiSlice = apiSlice.injectEndpoints({
         }),
         getItemBases: builder.query<ItemBaseType[], string>({
             query: (id) => `/items/${id}/bases`,
+            providesTags: (_result, _error, itemId) => [{ type: 'Items', id: itemId }],
+        }),
+        createItemBase: builder.mutation<
+            ItemBaseType,
+            { itemId: string; baseCode: string; addPower: number }
+        >({
+            query: ({ itemId, baseCode, addPower }) => ({
+                url: `/items/${itemId}/bases`,
+                method: 'POST',
+                body: { baseCode, addPower },
+            }),
+            invalidatesTags: (_result, _error, { itemId }) => [
+                { type: 'Items', id: itemId },
+            ],
+        }),
+        updateItemBase: builder.mutation<
+            ItemBaseType,
+            { itemId: string; baseId: string; baseCode?: string; addPower?: number }
+        >({
+            query: ({ itemId, baseId, baseCode, addPower }) => ({
+                url: `/items/${itemId}/bases/${baseId}`,
+                method: 'PATCH',
+                body: { baseCode, addPower },
+            }),
+            invalidatesTags: (_result, _error, { itemId }) => [
+                { type: 'Items', id: itemId },
+            ],
+        }),
+        deleteItemBase: builder.mutation<void, { itemId: string; baseId: string }>({
+            query: ({ itemId, baseId }) => ({
+                url: `/items/${itemId}/bases/${baseId}`,
+                method: 'DELETE',
+            }),
+            invalidatesTags: (_result, _error, { itemId }) => [
+                { type: 'Items', id: itemId },
+            ],
         }),
         createItem: builder.mutation({
             query: (formData) => ({
@@ -70,6 +106,9 @@ export const {
     useGetAllItemsQuery,
     useGetItemQuery,
     useGetItemBasesQuery,
+    useCreateItemBaseMutation,
+    useUpdateItemBaseMutation,
+    useDeleteItemBaseMutation,
     useCreateItemMutation,
     useUpdateItemMutation,
     useDeleteItemsMutation

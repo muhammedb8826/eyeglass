@@ -4,7 +4,7 @@ import SelectOptions from "@/common/SelectOptions";
 import Breadcrumb from "@/components/Breadcrumb";
 import ErroPage from "@/components/common/ErroPage";
 import { selectCurrentUser } from "@/redux/authSlice";
-import { useGetItemQuery, useUpdateItemMutation } from "@/redux/items/itemsApiSlice";
+import { useGetItemQuery, useUpdateItemMutation, useGetItemBasesQuery, useCreateItemBaseMutation, useUpdateItemBaseMutation, useDeleteItemBaseMutation } from "@/redux/items/itemsApiSlice";
 import { useGetAllMachinesQuery } from "@/redux/machines/machinesApiSlice";
 import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
@@ -15,7 +15,9 @@ import userImage from "../../assets/images/avatar.jpg";
 import Tabs from "@/common/TabComponent";
 import { useGetAllUnitsQuery } from "@/redux/unit/unitApiSlice";
 import { UoMType } from "@/types/UomType";
+import { ItemBaseType } from "@/types/ItemBaseType";
 import { BincardTable } from "@/components/bincard/BincardTable";
+import Swal from "sweetalert2";
 
 interface ErrorData {
   message: string;
@@ -30,9 +32,233 @@ const canBePurchasedText = {
   id: "canBePurchased"
 }
 
+function ItemBasesTab({ itemId, itemName }: { itemId: string; itemName?: string }) {
+  const { data: bases, isLoading } = useGetItemBasesQuery(itemId);
+  const [createBase, { isLoading: isAdding }] = useCreateItemBaseMutation();
+  const [updateBase, { isLoading: isUpdatingBase }] = useUpdateItemBaseMutation();
+  const [deleteBase] = useDeleteItemBaseMutation();
+  const [baseCode, setBaseCode] = useState("");
+  const [addPower, setAddPower] = useState("");
+  const [editingBaseId, setEditingBaseId] = useState<string | null>(null);
+  const [editBaseCode, setEditBaseCode] = useState("");
+  const [editAddPower, setEditAddPower] = useState("");
+
+  const handleAdd = async () => {
+    const addNum = parseFloat(addPower);
+    if (!baseCode.trim()) {
+      toast.error("Base code is required");
+      return;
+    }
+    if (Number.isNaN(addNum)) {
+      toast.error("Add power must be a number (diopters, e.g. 2.5 for +2.50 D)");
+      return;
+    }
+    try {
+      await createBase({ itemId, baseCode: baseCode.trim(), addPower: addNum }).unwrap();
+      toast.success("Base added");
+      setBaseCode("");
+      setAddPower("");
+    } catch (err) {
+      const fetchError = err as FetchBaseQueryError;
+      const msg = (fetchError.data as { message?: string })?.message ?? "Failed to add base";
+      toast.error(msg);
+    }
+  };
+
+  const startEdit = (b: ItemBaseType) => {
+    setEditingBaseId(b.id);
+    setEditBaseCode(b.baseCode);
+    setEditAddPower(String(b.addPower));
+  };
+
+  const cancelEdit = () => {
+    setEditingBaseId(null);
+    setEditBaseCode("");
+    setEditAddPower("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingBaseId) return;
+    const addNum = parseFloat(editAddPower);
+    if (!editBaseCode.trim()) {
+      toast.error("Base code is required");
+      return;
+    }
+    if (Number.isNaN(addNum)) {
+      toast.error("Add power must be a number (diopters)");
+      return;
+    }
+    try {
+      await updateBase({ itemId, baseId: editingBaseId, baseCode: editBaseCode.trim(), addPower: addNum }).unwrap();
+      toast.success("Base updated");
+      cancelEdit();
+    } catch (err) {
+      const fetchError = err as FetchBaseQueryError;
+      const msg = (fetchError.data as { message?: string })?.message ?? "Failed to update base";
+      toast.error(msg);
+    }
+  };
+
+  const handleDelete = async (b: ItemBaseType) => {
+    const result = await Swal.fire({
+      title: "Remove base?",
+      text: `Base ${b.baseCode} (+${b.addPower} D) will be removed. This fails if pricing or orders still use it.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#3085d6",
+      cancelButtonColor: "#d33",
+      confirmButtonText: "Yes, remove it",
+    });
+    if (!result.isConfirmed) return;
+    try {
+      await deleteBase({ itemId, baseId: b.id }).unwrap();
+      toast.success("Base removed");
+    } catch (err) {
+      const fetchError = err as FetchBaseQueryError;
+      const msg = (fetchError.data as { message?: string })?.message ?? "Failed to remove base (e.g. still in use)";
+      toast.error(msg);
+    }
+  };
+
+  const list = (bases as ItemBaseType[] | undefined) ?? [];
+
+  return (
+    <div className="p-7">
+      <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+        {itemName && <span className="font-medium text-black dark:text-white">{itemName}</span>}
+        {" "}– Add base variants (e.g. base 350 + add +2.50 D). Add power in diopters (2.5 = +2.50 D).
+      </p>
+      <div className="mb-6 flex flex-wrap items-end gap-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-black dark:text-white">Base code</label>
+          <input
+            type="text"
+            value={baseCode}
+            onChange={(e) => setBaseCode(e.target.value)}
+            placeholder="e.g. 350, 575, 800"
+            className="w-32 rounded border border-stroke bg-transparent py-2 px-3 dark:border-strokedark dark:bg-form-input dark:text-white"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-black dark:text-white">Add power (D)</label>
+          <input
+            type="number"
+            step="0.25"
+            value={addPower}
+            onChange={(e) => setAddPower(e.target.value)}
+            placeholder="e.g. 2.5, 7.5"
+            className="w-32 rounded border border-stroke bg-transparent py-2 px-3 dark:border-strokedark dark:bg-form-input dark:text-white"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={isAdding}
+          className="rounded bg-primary py-2 px-4 text-white hover:bg-opacity-90 disabled:opacity-60"
+        >
+          {isAdding ? "Adding…" : "Add base"}
+        </button>
+      </div>
+      {isLoading ? (
+        <Loader />
+      ) : (
+        <div className="overflow-x-auto rounded border border-stroke dark:border-strokedark">
+          <table className="w-full table-auto">
+            <thead>
+              <tr className="bg-gray-2 text-left dark:bg-meta-4">
+                <th className="py-3 px-4 font-medium text-black dark:text-white">Base code</th>
+                <th className="py-3 px-4 font-medium text-black dark:text-white">Add power (D)</th>
+                <th className="py-3 px-4 font-medium text-black dark:text-white">Display</th>
+                <th className="py-3 px-4 font-medium text-black dark:text-white">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="py-6 text-center text-gray-500 dark:text-gray-400">
+                    No bases yet. Add base variants above.
+                  </td>
+                </tr>
+              ) : (
+                list.map((b) => (
+                  <tr key={b.id} className="border-b border-stroke dark:border-strokedark">
+                    {editingBaseId === b.id ? (
+                      <>
+                        <td className="py-2 px-4">
+                          <input
+                            type="text"
+                            value={editBaseCode}
+                            onChange={(e) => setEditBaseCode(e.target.value)}
+                            className="w-24 rounded border border-stroke bg-transparent py-1 px-2 dark:border-strokedark dark:bg-form-input dark:text-white"
+                          />
+                        </td>
+                        <td className="py-2 px-4">
+                          <input
+                            type="number"
+                            step="0.25"
+                            value={editAddPower}
+                            onChange={(e) => setEditAddPower(e.target.value)}
+                            className="w-20 rounded border border-stroke bg-transparent py-1 px-2 dark:border-strokedark dark:bg-form-input dark:text-white"
+                          />
+                        </td>
+                        <td className="py-2 px-4 text-gray-500 dark:text-gray-400">—</td>
+                        <td className="py-2 px-4">
+                          <button
+                            type="button"
+                            onClick={handleSaveEdit}
+                            disabled={isUpdatingBase}
+                            className="mr-2 text-primary hover:underline disabled:opacity-60"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelEdit}
+                            className="text-gray-600 hover:underline dark:text-gray-400"
+                          >
+                            Cancel
+                          </button>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="py-2 px-4 text-black dark:text-white">{b.baseCode}</td>
+                        <td className="py-2 px-4 text-black dark:text-white">{b.addPower}</td>
+                        <td className="py-2 px-4 text-gray-600 dark:text-gray-400">
+                          {b.baseCode}+{Math.round(b.addPower * 10)}
+                        </td>
+                        <td className="py-2 px-4">
+                          <button
+                            type="button"
+                            onClick={() => startEdit(b)}
+                            className="mr-3 text-primary hover:underline"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(b)}
+                            className="text-red-600 hover:underline dark:text-red-400"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const tabs = [
   { id: 'general', label: 'General' },
-  { id: 'sales', label: 'Sales' },
+  { id: 'bases', label: 'Bases' },
   { id: 'bincard', label: 'Bincard' },
 ];
 
@@ -422,6 +648,10 @@ export const ItemEdit = () => {
               </div>
             </div>
              )}
+
+            {activeTabId === 'bases' && id && (
+              <ItemBasesTab itemId={id} itemName={data?.name} />
+            )}
 
             {activeTabId === 'bincard' && id && (
               <div className="p-7">

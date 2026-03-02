@@ -31,7 +31,6 @@ const canBePurchasedText = {
 
 const tabs = [
   { id: 'general', label: 'General' },
-  { id: 'sales', label: 'Sales' },
 ];
 
 
