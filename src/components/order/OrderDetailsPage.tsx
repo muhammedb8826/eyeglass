@@ -39,8 +39,9 @@ import { useReactToPrint } from "react-to-print";
 import { useGetFilePathsQuery } from "@/redux/file-path/filePathApiSlice";
 import { handleApiError } from "@/utils/errorHandling";
 import { PaymentTransactions as PaymentTransactionsType } from "@/types/PaymentTransactions";
-
-
+import { useGetLabToolsQuery } from "@/redux/labTools/labToolsApiSlice";
+import type { LabToolType } from "@/types/LabToolType";
+import type { ItemBaseType } from "@/types/ItemBaseType";
 
 const date = new Date();
 const formattedDate = date.toISOString().split("T")[0];
@@ -53,6 +54,108 @@ interface RxCalcRow {
   distanceSphereLeft: string;
   nearSphereLeft: string;
 }
+
+// Minimal shape needed for lab tool calculation
+interface OrderItemRxForToolsDetails {
+  sphereRight?: number;
+  sphereLeft?: number;
+  cylinderRight?: number;
+  cylinderLeft?: number;
+}
+
+// Convert a diopter or tool-style value into tool units (0.01 D steps).
+// Examples:
+//  - 1.25  -> 125
+//  - 125   -> 125
+const toToolUnitsDetails = (v: number | undefined): number | undefined => {
+  if (typeof v !== "number" || Number.isNaN(v)) return undefined;
+  // If magnitude is large (e.g. > 20 D), treat as already in tool units
+  return Math.abs(v) > 20 ? v : v * 100;
+};
+
+const computeToolValuesDetails = (
+  row: OrderItemRxForToolsDetails,
+  base: ItemBaseType | undefined,
+): number[] => {
+  if (!base) return [];
+
+  const baseNumeric = Number(base.baseCode);
+  if (!Number.isFinite(baseNumeric)) return [];
+
+  // Base (tool units) = baseCode + ADD contribution (e.g. 350 + 25 for +2.50)
+  const addTool =
+    typeof base.addPower === "number" && !Number.isNaN(base.addPower)
+      ? base.addPower * 10
+      : 0;
+  const baseTool = baseNumeric + addTool;
+  const values: number[] = [];
+
+  const rawSphR = row.sphereRight;
+  const rawCylR = row.cylinderRight;
+  const rawSphL = row.sphereLeft;
+  const rawCylL = row.cylinderLeft;
+
+  const sphRToolMag = toToolUnitsDetails(
+    typeof rawSphR === "number" ? Math.abs(rawSphR) : undefined,
+  );
+  const cylRToolMag = toToolUnitsDetails(
+    typeof rawCylR === "number" ? Math.abs(rawCylR) : undefined,
+  );
+  const sphLToolMag = toToolUnitsDetails(
+    typeof rawSphL === "number" ? Math.abs(rawSphL) : undefined,
+  );
+  const cylLToolMag = toToolUnitsDetails(
+    typeof rawCylL === "number" ? Math.abs(rawCylL) : undefined,
+  );
+
+  // Right eye:
+  if (typeof rawSphR === "number" && typeof sphRToolMag === "number") {
+    const sphOffset = rawSphR < 0 ? sphRToolMag : -sphRToolMag;
+    const rSph = baseTool + sphOffset;
+    values.push(rSph);
+    if (typeof cylRToolMag === "number" && cylRToolMag !== 0) {
+      values.push(rSph + cylRToolMag);
+    }
+  }
+
+  // Left eye:
+  if (typeof rawSphL === "number" && typeof sphLToolMag === "number") {
+    const sphOffset = rawSphL < 0 ? sphLToolMag : -sphLToolMag;
+    const lSph = baseTool + sphOffset;
+    values.push(lSph);
+    if (typeof cylLToolMag === "number" && cylLToolMag !== 0) {
+      values.push(lSph + cylLToolMag);
+    }
+  }
+
+  // Values are already in tool scale (e.g. 450, 775).
+  return values.map((v) => Math.round(v));
+};
+
+const findMissingToolValuesDetails = (
+  toolValues: number[],
+  labTools: LabToolType[],
+): number[] => {
+  const missing: number[] = [];
+
+  toolValues.forEach((val) => {
+    const hasTool = labTools.some(
+      (tool) =>
+        typeof tool.baseCurveMin === "number" &&
+        typeof tool.baseCurveMax === "number" &&
+        typeof tool.quantity === "number" &&
+        val >= tool.baseCurveMin &&
+        val <= tool.baseCurveMax &&
+        tool.quantity > 0,
+    );
+
+    if (!hasTool) {
+      missing.push(val);
+    }
+  });
+
+  return Array.from(new Set(missing));
+};
 
 const tabs = [
   { id: "general", label: "General" },
@@ -86,6 +189,7 @@ export const OrderDetailsPage = () => {
       limit: 1000,
       page: 1,
     });
+  const { data: labToolsData } = useGetLabToolsQuery({ page: 1, limit: 1000 });
 
   const [updateOrder, { isLoading: isUpdating }] = useUpdateOrderMutation();
   const [updateOrderItem, { isLoading: isUpdatingItem }] = useUpdateOrderItemMutation();
@@ -2215,6 +2319,31 @@ export const OrderDetailsPage = () => {
                                           Lens details
                                         </p>
                                         <div className="space-y-2">
+                                          {order?.orderItems?.[index]?.item?.itemBases &&
+                                            order.orderItems[index].item?.itemBases.length > 0 && (
+                                              <select
+                                                className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                                value={data.itemBaseId || ""}
+                                                onChange={(e) =>
+                                                  setFormData((prevFormData) => {
+                                                    const updatedFormData = [...prevFormData];
+                                                    updatedFormData[index] = {
+                                                      ...updatedFormData[index],
+                                                      itemBaseId: e.target.value || undefined,
+                                                    };
+                                                    return updatedFormData;
+                                                  })
+                                                }
+                                              >
+                                                <option value="">Select base / add</option>
+                                                {order.orderItems[index].item?.itemBases?.map((base) => (
+                                                  <option key={base.id} value={base.id}>
+                                                    {base.baseCode}
+                                                    {base.addPower ? `^+${base.addPower}` : ""}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            )}
                                           <input
                                             type="text"
                                             placeholder="Lens type"
@@ -2281,6 +2410,51 @@ export const OrderDetailsPage = () => {
                                               handleRxTextChange(index, "tintColor", e.target.value)
                                             }
                                           />
+                                          {data.itemId && data.itemBaseId && (
+                                            (() => {
+                                              // Prefer the populated itemBase relation on the row; fall back to itemBases array if present
+                                              const itemBaseFromRow = data.itemBase;
+                                              const basesForItem = order?.orderItems?.[index]?.item?.itemBases || [];
+                                              const baseFromList = basesForItem.find((b) => b.id === data.itemBaseId);
+                                              const baseForRow = (itemBaseFromRow || baseFromList) as ItemBaseType | undefined;
+
+                                              // Require full Rx (SPH & CYL for both eyes) before checking tools
+                                              const hasFullRx =
+                                                typeof data.sphereRight === "number" &&
+                                                typeof data.cylinderRight === "number" &&
+                                                typeof data.sphereLeft === "number" &&
+                                                typeof data.cylinderLeft === "number";
+                                              if (!hasFullRx) return null;
+
+                                              const toolValues = computeToolValuesDetails(data, baseForRow);
+                                              if (!toolValues.length) return null;
+
+                                              const labTools = labToolsData?.labTools ?? [];
+                                              const missing = labTools.length
+                                                ? findMissingToolValuesDetails(toolValues, labTools)
+                                                : [];
+
+                                              return (
+                                                <>
+                                                  <p className="mt-1 text-[11px] text-slate-600 dark:text-slate-300">
+                                                    Calculated tools: {toolValues.join(", ")}
+                                                  </p>
+                                                  {labTools.length > 0 && (
+                                                    missing.length === 0 ? (
+                                                      <p className="mt-0.5 text-[11px] text-emerald-600">
+                                                        Lab tools available for this Rx + base.
+                                                      </p>
+                                                    ) : (
+                                                      <p className="mt-0.5 text-[11px] text-red-600">
+                                                        Cannot produce lens: missing lab tools for values{" "}
+                                                        {missing.join(", ")}.
+                                                      </p>
+                                                    )
+                                                  )}
+                                                </>
+                                              );
+                                            })()
+                                          )}
                                         </div>
                                       </div>
                                     </div>

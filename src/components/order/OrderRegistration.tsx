@@ -960,13 +960,14 @@ export const OrderRegistration = () => {
 
     const ordeItemData = formData.map((data) => {
       // Check if the service is a non-stock service
-    const hasService = !!data.serviceId;
-    const isNonStockService = hasService && nonStockServices?.some(service => service.id === data.serviceId);
+      const hasService = !!data.serviceId;
+      const isNonStockService =
+        hasService && nonStockServices?.some((service) => service.id === data.serviceId);
 
-    const qty = parseFloat(data.quantity?.toString() || "0");
-    const unit = parseFloat(data.unitPrice?.toString() || "0");
-    const lineTotal = Math.round((qty * unit) * 100) / 100;
-      
+      const qty = parseFloat(data.quantity?.toString() || "0");
+      const unit = parseFloat(data.unitPrice?.toString() || "0");
+      const lineTotal = Math.round(qty * unit * 100) / 100;
+
       return {
         id: data.id,
         itemId: data.itemId,
@@ -974,8 +975,7 @@ export const OrderRegistration = () => {
           ? isNonStockService
             ? { nonStockServiceId: data.serviceId, isNonStockService: true }
             : { serviceId: data.serviceId, isNonStockService: false }
-          : {}
-        ),
+          : {}),
         width: data.width,
         height: data.height,
         discount: data.discount,
@@ -989,6 +989,28 @@ export const OrderRegistration = () => {
         isDiscounted: data.isDiscounted,
         status: data.status,
         orderId: data.orderId,
+        // Eyeglass-specific fields: Rx, PD, lens params, base
+        sphereRight: data.sphereRight,
+        sphereLeft: data.sphereLeft,
+        cylinderRight: data.cylinderRight,
+        cylinderLeft: data.cylinderLeft,
+        axisRight: data.axisRight,
+        axisLeft: data.axisLeft,
+        addRight: data.addRight,
+        addLeft: data.addLeft,
+        prismRight: data.prismRight,
+        prismLeft: data.prismLeft,
+        pd: data.pd,
+        pdMonocularRight: data.pdMonocularRight,
+        pdMonocularLeft: data.pdMonocularLeft,
+        lensType: data.lensType,
+        lensMaterial: data.lensMaterial,
+        lensCoating: data.lensCoating,
+        lensIndex: data.lensIndex,
+        baseCurve: data.baseCurve,
+        diameter: data.diameter,
+        tintColor: data.tintColor,
+        itemBaseId: data.itemBaseId,
         pricingId: data.pricingId,
         unit: data.unit,
         baseUomId: data.baseUomId,
