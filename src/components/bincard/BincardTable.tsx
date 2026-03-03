@@ -35,7 +35,7 @@ export const BincardTable = ({
   pageSize = 20,
 }: BincardTableProps) => {
   const [page, setPage] = useState(1);
-  const { data, isLoading, isError, error } = useGetBincardByItemQuery({
+  const { data, isLoading, isError } = useGetBincardByItemQuery({
     itemId,
     page,
     limit: pageSize,

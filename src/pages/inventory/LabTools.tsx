@@ -71,7 +71,6 @@ export const LabTools = () => {
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement>,
-    isEdit = false
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));

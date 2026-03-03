@@ -2319,8 +2319,10 @@ export const OrderDetailsPage = () => {
                                           Lens details
                                         </p>
                                         <div className="space-y-2">
-                                          {order?.orderItems?.[index]?.item?.itemBases &&
-                                            order.orderItems[index].item?.itemBases.length > 0 && (
+                                          {(() => {
+                                            const itemBases = order?.orderItems?.[index]?.item?.itemBases;
+                                            if (!itemBases || itemBases.length === 0) return null;
+                                            return (
                                               <select
                                                 className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
                                                 value={data.itemBaseId || ""}
@@ -2336,14 +2338,15 @@ export const OrderDetailsPage = () => {
                                                 }
                                               >
                                                 <option value="">Select base / add</option>
-                                                {order.orderItems[index].item?.itemBases?.map((base) => (
+                                                {itemBases.map((base) => (
                                                   <option key={base.id} value={base.id}>
                                                     {base.baseCode}
                                                     {base.addPower ? `^+${base.addPower}` : ""}
                                                   </option>
                                                 ))}
                                               </select>
-                                            )}
+                                            );
+                                          })()}
                                           <input
                                             type="text"
                                             placeholder="Lens type"

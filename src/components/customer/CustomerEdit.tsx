@@ -23,10 +23,19 @@ const CustomerEdit = ({ handleModalOpen, id }: { handleModalOpen: (isOpen: boole
     });
 
     useEffect(() => {
-        if (data) {
-            setFormData(data);
-        }
-    }, [data]);
+    if (data) {
+      setFormData({
+        fullName: data.fullName ?? "",
+        phone: data.phone ?? "",
+        email: data.email ?? "",
+        company: data.company ?? "",
+        address: data.address ?? "",
+        description: data.description ?? "",
+        dateOfBirth: data.dateOfBirth ?? "",
+        gender: data.gender ?? "",
+      });
+    }
+  }, [data]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
