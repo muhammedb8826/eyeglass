@@ -3,7 +3,7 @@ name: Deploy Vite App to cPanel via FTP
 on:
   push:
     branches:
-      - dev
+      - main
 
 jobs:
   web-deploy:
@@ -24,7 +24,7 @@ jobs:
     - name: Build Vite app
       run: npm run build
       env:
-        VITE_NEST_BACKEND_URL: https://api.ianprint.com/api/v1
+        VITE_NEST_BACKEND_URL: https://api.sn-et.org/api/v1
 
     - name: Deploy to cPanel via FTP
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
