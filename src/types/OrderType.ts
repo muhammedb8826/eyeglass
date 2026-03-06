@@ -20,7 +20,6 @@ export interface OrderType {
     totalQuantity: number,
     internalNote: string
     adminApproval: boolean,
-    fileNames?: string[],
     orderItems: OrderItemType[],
     paymentTerm?: PaymentTerm[],
     commission?: CommissionType[],

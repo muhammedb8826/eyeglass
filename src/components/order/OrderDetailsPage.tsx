@@ -15,7 +15,7 @@ import {
   useUpdateOrderMutation,
   useUpdateOrderItemMutation,
 } from "@/redux/order/orderApiSlice";
-import { useGetAllItemsQuery } from "@/redux/items/itemsApiSlice";
+import { useGetAllItemsQuery, useLazyGetItemBasesQuery } from "@/redux/items/itemsApiSlice";
 import { useGetAllCustomersQuery } from "@/redux/customer/customerApiSlice";
 import { OrderItemType } from "@/types/OrderItemType";
 import { OrderType } from "@/types/OrderType";
@@ -36,7 +36,6 @@ import { PricingType } from "@/types/PricingType";
 import { useGetAllDiscountsQuery } from "@/redux/discount/discountApiSlice";
 import { FaPrint } from "react-icons/fa6";
 import { useReactToPrint } from "react-to-print";
-import { useGetFilePathsQuery } from "@/redux/file-path/filePathApiSlice";
 import { handleApiError } from "@/utils/errorHandling";
 import { PaymentTransactions as PaymentTransactionsType } from "@/types/PaymentTransactions";
 import { useGetLabToolsQuery } from "@/redux/labTools/labToolsApiSlice";
@@ -184,17 +183,11 @@ export const OrderDetailsPage = () => {
     useGetAllNonStockServicesQuery();
   const { data: discounts, isLoading: isDiscountsLoading } =
     useGetAllDiscountsQuery();
-  const { data: filePaths, isLoading: isFilePathsLoading } =
-    useGetFilePathsQuery({
-      limit: 1000,
-      page: 1,
-    });
   const { data: labToolsData } = useGetLabToolsQuery({ page: 1, limit: 1000 });
+  const [fetchItemBases] = useLazyGetItemBasesQuery();
 
   const [updateOrder, { isLoading: isUpdating }] = useUpdateOrderMutation();
   const [updateOrderItem, { isLoading: isUpdatingItem }] = useUpdateOrderItemMutation();
-
-  const [fileName, setFileName] = useState<string[]>([]);
 
   const [orderInfo, setOrderInfo] = useState<OrderType>({
     id: "",
@@ -269,6 +262,7 @@ export const OrderDetailsPage = () => {
   const [collapseDisount, setCollapseDiscount] = useState(false);
   const [totaTransaction, setTotalTransaction] = useState(0);
   const [activeRxRow, setActiveRxRow] = useState<number | null>(null);
+  const [itemBasesMap, setItemBasesMap] = useState<Record<string, ItemBaseType[]>>({});
   const [rxCalcRows, setRxCalcRows] = useState<RxCalcRow[]>([
     {
       distanceSphereRight: "",
@@ -325,7 +319,6 @@ export const OrderDetailsPage = () => {
           nearSphereLeft: "",
         }))
       );
-      setFileName(order.fileNames || []);
       setPaymentTransactions(
         (order.paymentTerm?.[0]?.transactions || []).map((transaction) => ({
           ...transaction,
@@ -352,54 +345,30 @@ export const OrderDetailsPage = () => {
         id: order?.commission?.[0]?.salesPartnerId || "",
         fullName: order?.commission?.[0]?.salesPartner?.fullName || "",
       });
-    }
-  }, [order, items]);
-
-  const [icons, setIcons] = useState<string[]>([]);
-  const [tooltipMessages, setTooltipMessages] = useState<string[]>([]);
-  const inputRefs = useRef(Array(fileName.length).fill(null));
-
-  useEffect(() => {
-    setIcons(Array(fileName.length).fill("default"));
-    setTooltipMessages(Array(fileName.length).fill("Copy to clipboard"));
-  }, [fileName]);
-
-  const copyToClipboard = (index: number) => {
-    inputRefs.current[index].select();
-    try {
-      navigator.clipboard.writeText(fileName[index]);
-      setTooltipMessages((prevMessages) => {
-        const newMessages = [...prevMessages];
-        newMessages[index] = "Copied!";
-        return newMessages;
+      // Populate item bases for each order item (same as order form) so base dropdown is visible
+      const nextBasesMap: Record<string, ItemBaseType[]> = {};
+      order.orderItems.forEach((orderItem: { itemId: string; item?: { itemBases?: ItemBaseType[] } }) => {
+        const itemId = orderItem.itemId;
+        if (!itemId) return;
+        const itemBases = orderItem.item?.itemBases;
+        if (Array.isArray(itemBases) && itemBases.length > 0) {
+          nextBasesMap[itemId] = itemBases;
+        }
       });
-      setIcons((prevIcons) => {
-        const newIcons = [...prevIcons];
-        newIcons[index] = "success";
-        return newIcons;
-      });
-    } catch (err) {
-      console.error("Failed to copy: ", err);
-      setTooltipMessages((prevMessages) => {
-        const newMessages = [...prevMessages];
-        newMessages[index] = "Copy failed";
-        return newMessages;
+      setItemBasesMap((prev) => ({ ...prev, ...nextBasesMap }));
+      // Fetch bases for any item that didn't have itemBases in the order response (uses RTK Query so correct base URL + auth)
+      order.orderItems.forEach((orderItem: { itemId: string; item?: { itemBases?: ItemBaseType[] } }) => {
+        const itemId = orderItem.itemId;
+        if (!itemId || nextBasesMap[itemId]) return;
+        fetchItemBases(itemId)
+          .unwrap()
+          .then((bases) => {
+            setItemBasesMap((prev) => ({ ...prev, [itemId]: bases }));
+          })
+          .catch(() => {});
       });
     }
-
-    setTimeout(() => {
-      setTooltipMessages((prevMessages) => {
-        const newMessages = [...prevMessages];
-        newMessages[index] = "Copy to clipboard";
-        return newMessages;
-      });
-      setIcons((prevIcons) => {
-        const newIcons = [...prevIcons];
-        newIcons[index] = "default";
-        return newIcons;
-      });
-    }, 1500);
-  };
+  }, [order, items, fetchItemBases]);
 
   const handleCommissionPaymentMethod = (
     index: number,
@@ -652,6 +621,7 @@ export const OrderDetailsPage = () => {
         itemId: value,
         serviceId: "", // Reset service selection
         pricingId: "", // Reset pricing
+        itemBaseId: undefined,
         width: '', // Reset width
         height: '', // Reset height
         quantity: '', // Reset quantity
@@ -667,6 +637,15 @@ export const OrderDetailsPage = () => {
         description: "", // Reset description
         isDiscounted: false, // Reset discount flag
       };
+
+      if (selectedItem.id && !(selectedItem.id in itemBasesMap)) {
+        fetchItemBases(selectedItem.id)
+          .unwrap()
+          .then((bases) => {
+            setItemBasesMap((prev) => ({ ...prev, [selectedItem.id]: bases }));
+          })
+          .catch(() => {});
+      }
 
       setFormData(updatedFormData);
     }
@@ -1140,24 +1119,6 @@ export const OrderDetailsPage = () => {
       setTotalCommission(parseFloat(totalCommission.toFixed(2)));
     }
 
-    const combination = formData.map((data, index) => {
-      const customer = customers?.find(
-        (customer) => customer.id === orderInfo.customerId
-      );
-      const item = items?.find((item) => item.id === data.itemId);
-      if (!customer || !item) return "";
-      
-      // Get the first file path from filePaths data to use as prefix
-      const filePathPrefix = filePaths?.filePaths?.[0]?.filePath || "";
-      const fileType = filePaths?.filePaths?.[0]?.fileType || "";
-      const sequenceNumber = String(index + 1).padStart(2, '0'); // Add sequence number with leading zero
-      const fileName = `${order?.series}-${sequenceNumber}-${customer.fullName}-${item.name}-${data.width}x${data.height}`;
-      
-      // Combine file path prefix with file name
-      return filePathPrefix ? `${filePathPrefix}\\${fileName}${fileType}` : fileName;
-    });
-
-    setFileName(combination);
   }, [
     formData,
     orderInfo.customerId,
@@ -1165,7 +1126,6 @@ export const OrderDetailsPage = () => {
     customers,
     commissionTransactions,
     userInputDiscount,
-    filePaths,
     order
   ]);
 
@@ -1524,7 +1484,6 @@ export const OrderDetailsPage = () => {
     // Compose final data
     const data = {
       ...orderInfo,
-      fileNames: fileName,
       orderItems: ordeItemData,
       paymentTerm: [paymentData],
       commission: commissionData.totalAmount > 0 ? [commissionData] : undefined,
@@ -1618,13 +1577,9 @@ export const OrderDetailsPage = () => {
     isServicesLoading ||
     isNonStockServicesLoading ||
     isPricingsLoading ||
-    isDiscountsLoading ||
-    isFilePathsLoading
+    isDiscountsLoading
   )
     return <Loader />;
-
-  console.log(filePaths?.filePaths);
-  
 
   return (
     <>
@@ -1834,9 +1789,9 @@ export const OrderDetailsPage = () => {
                                       title="Select units"
                                     />
                                   </td>
-                                  <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <div className="flex items-center gap-0.5">
+                                  <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark whitespace-nowrap">
+                                    <div className="flex items-center gap-2 flex-nowrap">
+                                      <div className="flex items-center gap-0.5 shrink-0">
                                         <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 w-8 shrink-0">R</span>
                                         <button
                                           type="button"
@@ -1865,7 +1820,7 @@ export const OrderDetailsPage = () => {
                                           +
                                         </button>
                                       </div>
-                                      <div className="flex items-center gap-0.5">
+                                      <div className="flex items-center gap-0.5 shrink-0">
                                         <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 w-8 shrink-0">L</span>
                                         <button
                                           type="button"
@@ -1894,7 +1849,7 @@ export const OrderDetailsPage = () => {
                                           +
                                         </button>
                                       </div>
-                                      <div className="flex items-center gap-1 border-l border-stroke pl-2 dark:border-strokedark">
+                                      <div className="flex items-center gap-1 border-l border-stroke pl-2 dark:border-strokedark shrink-0">
                                         <span className="text-[10px] text-gray-500 dark:text-gray-400 shrink-0">Total</span>
                                         <input
                                           title="Quantity total (or single)"
@@ -2305,34 +2260,30 @@ export const OrderDetailsPage = () => {
                                           Lens details
                                         </p>
                                         <div className="space-y-2">
-                                          {(() => {
-                                            const itemBases = order?.orderItems?.[index]?.item?.itemBases;
-                                            if (!itemBases || itemBases.length === 0) return null;
-                                            return (
-                                              <select
-                                                className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
-                                                value={data.itemBaseId || ""}
-                                                onChange={(e) =>
-                                                  setFormData((prevFormData) => {
-                                                    const updatedFormData = [...prevFormData];
-                                                    updatedFormData[index] = {
-                                                      ...updatedFormData[index],
-                                                      itemBaseId: e.target.value || undefined,
-                                                    };
-                                                    return updatedFormData;
-                                                  })
-                                                }
-                                              >
-                                                <option value="">Select base / add</option>
-                                                {itemBases.map((base) => (
-                                                  <option key={base.id} value={base.id}>
-                                                    {base.baseCode}
-                                                    {base.addPower ? `^+${base.addPower}` : ""}
-                                                  </option>
-                                                ))}
-                                              </select>
-                                            );
-                                          })()}
+                                          {data.itemId && itemBasesMap[data.itemId] && itemBasesMap[data.itemId].length > 0 && (
+                                            <select
+                                              className="w-full rounded border border-stroke bg-transparent py-1 px-2 text-xs font-medium outline-none dark:border-form-strokedark dark:bg-form-input dark:text-white"
+                                              value={data.itemBaseId || ""}
+                                              onChange={(e) =>
+                                                setFormData((prevFormData) => {
+                                                  const updatedFormData = [...prevFormData];
+                                                  updatedFormData[index] = {
+                                                    ...updatedFormData[index],
+                                                    itemBaseId: e.target.value || undefined,
+                                                  };
+                                                  return updatedFormData;
+                                                })
+                                              }
+                                            >
+                                              <option value="">Select base / add</option>
+                                              {itemBasesMap[data.itemId].map((base) => (
+                                                <option key={base.id} value={base.id}>
+                                                  {base.baseCode}
+                                                  {base.addPower ? `^+${base.addPower}` : ""}
+                                                </option>
+                                              ))}
+                                            </select>
+                                          )}
                                           <input
                                             type="text"
                                             placeholder="Lens type"
@@ -2399,13 +2350,10 @@ export const OrderDetailsPage = () => {
                                               handleRxTextChange(index, "tintColor", e.target.value)
                                             }
                                           />
-                                          {data.itemId && data.itemBaseId && (
+                                          {data.itemId && data.itemBaseId && itemBasesMap[data.itemId] && (
                                             (() => {
-                                              // Prefer the populated itemBase relation on the row; fall back to itemBases array if present
-                                              const itemBaseFromRow = data.itemBase;
-                                              const basesForItem = order?.orderItems?.[index]?.item?.itemBases || [];
-                                              const baseFromList = basesForItem.find((b) => b.id === data.itemBaseId);
-                                              const baseForRow = (itemBaseFromRow || baseFromList) as ItemBaseType | undefined;
+                                              const basesForItem = itemBasesMap[data.itemId] || [];
+                                              const baseForRow = basesForItem.find((b) => b.id === data.itemBaseId) as ItemBaseType | undefined;
 
                                               const { right: rightValues, left: leftValues } = computeToolValuesDetails(data, baseForRow);
                                               const labTools = labToolsData?.labTools ?? [];
@@ -2428,32 +2376,38 @@ export const OrderDetailsPage = () => {
                                                   <p className="mt-1 text-[11px] font-medium text-black dark:text-white">
                                                     Calculated tools — {calculatedLine}
                                                   </p>
-                                                  {labTools.length > 0 && (
-                                                    <div className="mt-0.5 space-y-0.5">
-                                                      {rightValues.length > 0 && (
-                                                        missingRight.length === 0 ? (
-                                                          <p className="text-[11px] font-medium text-success">
-                                                            Right lens: lab tools available.
-                                                          </p>
-                                                        ) : (
-                                                          <p className="text-[11px] font-medium text-danger">
-                                                            Right lens: missing lab tools for values {missingRight.join(", ")}.
-                                                          </p>
-                                                        )
-                                                      )}
-                                                      {leftValues.length > 0 && (
-                                                        missingLeft.length === 0 ? (
-                                                          <p className="text-[11px] font-medium text-success">
-                                                            Left lens: lab tools available.
-                                                          </p>
-                                                        ) : (
-                                                          <p className="text-[11px] font-medium text-danger">
-                                                            Left lens: missing lab tools for values {missingLeft.join(", ")}.
-                                                          </p>
-                                                        )
-                                                      )}
-                                                    </div>
-                                                  )}
+                                                  <div className="mt-0.5 space-y-0.5">
+                                                    {labTools.length > 0 ? (
+                                                      <>
+                                                        {rightValues.length > 0 && (
+                                                          missingRight.length === 0 ? (
+                                                            <p className="text-[11px] font-medium text-success">
+                                                              Right lens: lab tools available.
+                                                            </p>
+                                                          ) : (
+                                                            <p className="text-[11px] font-medium text-danger">
+                                                              Right lens: missing lab tools for values {missingRight.join(", ")}.
+                                                            </p>
+                                                          )
+                                                        )}
+                                                        {leftValues.length > 0 && (
+                                                          missingLeft.length === 0 ? (
+                                                            <p className="text-[11px] font-medium text-success">
+                                                              Left lens: lab tools available.
+                                                            </p>
+                                                          ) : (
+                                                            <p className="text-[11px] font-medium text-danger">
+                                                              Left lens: missing lab tools for values {missingLeft.join(", ")}.
+                                                            </p>
+                                                          )
+                                                        )}
+                                                      </>
+                                                    ) : (
+                                                      <p className="text-[11px] text-bodydark dark:text-bodydark">
+                                                        Lab tools not loaded or empty — cannot check producibility.
+                                                      </p>
+                                                    )}
+                                                  </div>
                                                 </>
                                               );
                                             })()
@@ -3110,81 +3064,6 @@ export const OrderDetailsPage = () => {
                 className="text-black dark:text-white w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                 placeholder="Leave a comment..."
               ></textarea>
-            </div>
-            <div className="w-full">
-              <p className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                File Names
-              </p>
-
-              <ul className="space-y-4 text-left text-gray-500 dark:text-gray-400">
-                {fileName.map((item, index) => (
-                  <li
-                    key={index}
-                    className="flex items-center space-x-3 rtl:space-x-reverse"
-                  >
-                    <div className="w-full relative">
-                      <label
-                        htmlFor={`npm-install-copy-button-${index}`}
-                        className="sr-only"
-                      >
-                        Label
-                      </label>
-                      <input
-                        id={`npm-install-copy-button-${index}`}
-                        type="text"
-                        className="text-black dark:text-white w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                        value={item}
-                        disabled
-                        readOnly
-                        ref={(el) => (inputRefs.current[index] = el)}
-                      />
-                      <button
-                        type="button"
-                        title={tooltipMessages[index]}
-                        onClick={() => copyToClipboard(index)}
-                        className="absolute end-2 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg p-2 inline-flex items-center justify-center"
-                      >
-                        {icons[index] === "default" ? (
-                          <svg
-                            className="w-3.5 h-3.5"
-                            aria-hidden="true"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="currentColor"
-                            viewBox="0 0 18 20"
-                          >
-                            <path d="M16 1h-3.278A1.992 1.992 0 0 0 11 0H7a1.993 1.993 0 0 0-1.722 1H2a2 2 0 0 0-2 2v15a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2Zm-3 14H5a1 1 0 0 1 0-2h8a1 1 0 0 1 0 2Zm0-4H5a1 1 0 0 1 0-2h8a1 1 0 1 1 0 2Zm0-5H5a1 1 0 0 1 0-2h2V2h4v2h2a1 1 0 1 1 0 2Z" />
-                          </svg>
-                        ) : (
-                          <span className="inline-flex items-center">
-                            <svg
-                              className="flex-shrink-0 w-3.5 h-3.5 text-green-500 dark:text-green-400"
-                              aria-hidden="true"
-                              xmlns="http://www.w3.org/2000/svg"
-                              fill="none"
-                              viewBox="0 0 16 12"
-                            >
-                              <path
-                                stroke="currentColor"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth="2"
-                                d="M1 5.917 5.724 10.5 15 1.5"
-                              />
-                            </svg>
-                          </span>
-                        )}
-                      </button>
-                      <div
-                        role="tooltip"
-                        className="absolute z-10 invisible inline-block px-3 py-2 text-sm font-medium text-white transition-opacity duration-300 bg-gray-900 rounded-lg shadow-sm opacity-0 tooltip dark:bg-gray-700"
-                      >
-                        <span>{tooltipMessages[index]}</span>
-                        <div className="tooltip-arrow" data-popper-arrow></div>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
             </div>
           </div>
           <div className="flex justify-end">

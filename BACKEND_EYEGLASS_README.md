@@ -238,6 +238,17 @@ So the four tool values for this job are:
 
 These are exactly the values we must be able to cover with lab tools.
 
+### 5.5 Right and left lens independence
+
+- **Right lens** tool values are computed **only** from:
+  - `sphereRight`, `cylinderRight`
+  - and the chosen `ItemBase` (same base is used for both eyes).
+- **Left lens** tool values are computed **only** from:
+  - `sphereLeft`, `cylinderLeft`
+  - and the same `ItemBase`.
+
+Right and left are **independent**: the lab can produce only the right lens, only the left lens, or both. If the order has only one side (e.g. single-vision for one eye), only that eye’s Rx is required and only that eye’s tool values are computed and checked. The backend should treat producibility **per eye**: e.g. if only right lens is being ordered (`quantityRight > 0`, `quantityLeft = 0`), only the right-eye tool values need to be covered by lab tools; similarly for left-only.
+
 ---
 
 ## 6. Automatic Producibility Check
@@ -258,14 +269,16 @@ For each eyeglass `OrderItem` where the check applies:
 1. **Load item and base**
    - Resolve `Item` and `ItemBase` (`itemBaseId`) for the order item.
 2. **Compute BaseTool** using §5.2.
-3. **Compute tool values** (Right/Left SPH and CYL) using §5.4:
-   - `R_SPH`, `R_CYL`, `L_SPH`, `L_CYL` (some may be missing if Rx fields are absent).
+3. **Compute tool values per eye** using §5.4 and §5.5:
+   - **Right lens:** from `sphereRight` and `cylinderRight` → `R_SPH`, and if CYL ≠ 0, `R_CYL = R_SPH + CylToolMag`.
+   - **Left lens:** from `sphereLeft` and `cylinderLeft` → `L_SPH`, and if CYL ≠ 0, `L_CYL = L_SPH + CylToolMag`.
+   - Only compute values for the eye(s) that have Rx and are being produced (see §5.5).
 4. **Call lab tools check** or perform equivalent query:
    - For each tool value \(v\):
      - Find a `LabTool` such that:
        - `baseCurveMin <= v <= baseCurveMax`
        - `quantity > 0`
-5. **If any tool value has no matching `LabTool`**, the operation is rejected:
+5. **Per-eye producibility (recommended):** For each eye that has computed tool values, check that **all** of that eye’s values are covered. If the order line is right-only (e.g. `quantityRight > 0`, `quantityLeft = 0`), require only right-eye tool values to be covered; if left-only, require only left-eye; if both, require both. **If any tool value for a produced eye has no matching `LabTool`**, the operation is rejected:
 
    - HTTP status: `400` or `409` (implementation‑dependent).
    - Error shape (example):
@@ -284,21 +297,20 @@ For each eyeglass `OrderItem` where the check applies:
 
 6. **If all tool values are covered**, the request proceeds as normal and the order item is accepted.
 
-### 6.3 Partial data
+### 6.3 Partial data and single-eye orders
 
-- If **any** of the required fields for the calculation are missing (e.g. no `itemBaseId` or no SPH/CYL), the backend **skips** the tool check for that line and processes it as a generic item line.
-- This keeps the system backwards‑compatible while allowing stricter validation for fully configured eyeglass workflows.
+- If **any** of the required fields for the calculation are missing (e.g. no `itemBaseId` or no SPH for an eye), the backend **skips** the tool check for that eye (or that line) and processes it as a generic item line where appropriate.
+- **Single-eye orders:** If only one eye has Rx / is being produced, compute and validate only that eye’s tool values. This keeps the system backwards‑compatible while allowing stricter validation for fully configured eyeglass workflows.
 
 ---
 
 ## 7. Frontend vs Backend Responsibilities
 
 - **Frontend**
-  - Computes the same tool values on the order form and shows:
-    - Calculated tools (e.g. `450, 775, 375, 700`).
-    - A green “Lab tools available for this Rx + base.” message when all values are covered.
-    - A red “Cannot produce lens: missing lab tools for values …” message when any value is missing.
-  - This is a **preview** to give fast feedback to the operator.
+  - Computes the same tool values **per eye** (right from `sphereRight`/`cylinderRight`, left from `sphereLeft`/`cylinderLeft`) and shows:
+    - **Calculated tools** per eye, e.g. `Right: 450, 775. Left: 375, 700`.
+    - **Per-eye producibility:** for each eye that has tool values, a green “Right lens: lab tools available.” / “Left lens: lab tools available.” when that eye’s values are covered, or a red “Right lens: missing lab tools for values …” / “Left lens: missing lab tools for values …” when that eye has missing tools.
+  - This is a **preview** so the operator can see whether they can produce the right lens, the left lens, or both.
 
 - **Backend**
   - Is the **source of truth**:

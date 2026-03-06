@@ -260,7 +260,6 @@ export const OrderRegistration = () => {
     fullName: "",
   });
 
-  const [fileName, setFileName] = useState<string[]>([]);
   const [userInputDiscount, setUserInputDiscount] = useState('');
   const [collapseDisount, setCollapseDiscount] = useState(false);
   const [totaTransaction, setTotalTransaction] = useState(0);
@@ -788,17 +787,6 @@ export const OrderRegistration = () => {
       setTotalCommission(parseFloat(totalCommission.toFixed(2)));
     }
 
-    const combination = formData.map((data, index) => {
-      const customer = customers?.find((customer) => customer.id === orderInfo.customerId);
-      const item = items?.find((item) => item.id === data.itemId);
-      if (!customer || !item) return "";
-      
-      // Add sequence number with leading zero
-      const sequenceNumber = String(index + 1).padStart(2, '0');
-      return `${orderInfo.series}${sequenceNumber}-${customer.fullName}-${item.name}-${data.width}x${data.height}`;
-    });
-
-    setFileName(combination);
   }, [formData, orderInfo.customerId, items, customers, commissionTransactions, userInputDiscount, orderInfo.series]);
 
 
@@ -1054,7 +1042,6 @@ export const OrderRegistration = () => {
 
     const data = {
       ...orderInfo,
-      fileNames: fileName,
       orderItems: ordeItemData,
       paymentTerm: [paymentData],
       commission: commissionData.totalAmount > 0 ? [commissionData] : undefined,
@@ -1322,9 +1309,9 @@ export const OrderRegistration = () => {
                                     title="Select units"
                                   />
                                 </td>
-                                <td className="py-2 border-b text-graydark dark:text-white border-[#eee] dark:border-strokedark">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <div className="flex items-center gap-0.5">
+                                <td className="py-2 border-b text-graydark dark:text-white border-[#eee] dark:border-strokedark whitespace-nowrap">
+                                  <div className="flex items-center gap-2 flex-nowrap">
+                                    <div className="flex items-center gap-0.5 shrink-0">
                                       <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 w-8 shrink-0">R</span>
                                       <button
                                         type="button"
@@ -1353,7 +1340,7 @@ export const OrderRegistration = () => {
                                         +
                                       </button>
                                     </div>
-                                    <div className="flex items-center gap-0.5">
+                                    <div className="flex items-center gap-0.5 shrink-0">
                                       <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 w-8 shrink-0">L</span>
                                       <button
                                         type="button"
@@ -1382,7 +1369,7 @@ export const OrderRegistration = () => {
                                         +
                                       </button>
                                     </div>
-                                    <div className="flex items-center gap-1 border-l border-stroke pl-2 dark:border-strokedark">
+                                    <div className="flex items-center gap-1 border-l border-stroke pl-2 dark:border-strokedark shrink-0">
                                       <span className="text-[10px] text-gray-500 dark:text-gray-400 shrink-0">Total</span>
                                       <input
                                         title="Quantity total (or single)"
@@ -1718,32 +1705,38 @@ export const OrderRegistration = () => {
                                                   <p className="mt-1 text-[11px] font-medium text-black dark:text-white">
                                                     Calculated tools — {calculatedLine}
                                                   </p>
-                                                  {labTools.length > 0 && (
-                                                    <div className="mt-0.5 space-y-0.5">
-                                                      {rightValues.length > 0 && (
-                                                        missingRight.length === 0 ? (
-                                                          <p className="text-[11px] font-medium text-success">
-                                                            Right lens: lab tools available.
-                                                          </p>
-                                                        ) : (
-                                                          <p className="text-[11px] font-medium text-danger">
-                                                            Right lens: missing lab tools for values {missingRight.join(", ")}.
-                                                          </p>
-                                                        )
-                                                      )}
-                                                      {leftValues.length > 0 && (
-                                                        missingLeft.length === 0 ? (
-                                                          <p className="text-[11px] font-medium text-success">
-                                                            Left lens: lab tools available.
-                                                          </p>
-                                                        ) : (
-                                                          <p className="text-[11px] font-medium text-danger">
-                                                            Left lens: missing lab tools for values {missingLeft.join(", ")}.
-                                                          </p>
-                                                        )
-                                                      )}
-                                                    </div>
-                                                  )}
+                                                  <div className="mt-0.5 space-y-0.5">
+                                                    {labTools.length > 0 ? (
+                                                      <>
+                                                        {rightValues.length > 0 && (
+                                                          missingRight.length === 0 ? (
+                                                            <p className="text-[11px] font-medium text-success">
+                                                              Right lens: lab tools available.
+                                                            </p>
+                                                          ) : (
+                                                            <p className="text-[11px] font-medium text-danger">
+                                                              Right lens: missing lab tools for values {missingRight.join(", ")}.
+                                                            </p>
+                                                          )
+                                                        )}
+                                                        {leftValues.length > 0 && (
+                                                          missingLeft.length === 0 ? (
+                                                            <p className="text-[11px] font-medium text-success">
+                                                              Left lens: lab tools available.
+                                                            </p>
+                                                          ) : (
+                                                            <p className="text-[11px] font-medium text-danger">
+                                                              Left lens: missing lab tools for values {missingLeft.join(", ")}.
+                                                            </p>
+                                                          )
+                                                        )}
+                                                      </>
+                                                    ) : (
+                                                      <p className="text-[11px] text-bodydark dark:text-bodydark">
+                                                        Lab tools not loaded or empty — cannot check producibility.
+                                                      </p>
+                                                    )}
+                                                  </div>
                                                 </>
                                               );
                                             })()
@@ -2428,36 +2421,6 @@ export const OrderRegistration = () => {
                 className="text-black dark:text-white w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                 placeholder="Leave a comment..."
               ></textarea>
-            </div>
-            <div>
-              <p className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                File Names
-              </p>
-              <ul className="space-y-4 text-left text-gray-500 dark:text-gray-400">
-                {fileName.map((item, index) => (
-                  <li
-                    key={index}
-                    className="flex items-center space-x-3 rtl:space-x-reverse"
-                  >
-                    <svg
-                      className="flex-shrink-0 w-3.5 h-3.5 text-green-500 dark:text-green-400"
-                      aria-hidden="true"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 16 12"
-                    >
-                      <path
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M1 5.917 5.724 10.5 15 1.5"
-                      />
-                    </svg>
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
             </div>
           </div>
           <button

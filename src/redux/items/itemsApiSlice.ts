@@ -106,6 +106,7 @@ export const {
     useGetAllItemsQuery,
     useGetItemQuery,
     useGetItemBasesQuery,
+    useLazyGetItemBasesQuery,
     useCreateItemBaseMutation,
     useUpdateItemBaseMutation,
     useDeleteItemBaseMutation,
