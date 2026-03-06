@@ -237,7 +237,7 @@ const DropdownNotification = () => {
             </>
           )}
 
-          {user?.roles === "GRAPHIC_DESIGNER" && (
+          {user?.roles === "LAB_TECHNICIAN" && (
             <>
               {orders && orders.length > 0 ? (
                 // Filter orders to only include those with items to review
@@ -423,7 +423,7 @@ const DropdownNotification = () => {
             </>
           )}
 
-          {user?.roles === "STORE_REPRESENTATIVE" && (
+          {user?.roles === "PURCHASER" && (
             <>
               {purchases && purchases?.length > 0 ? (
                 purchases.filter(notification => {
@@ -469,7 +469,7 @@ const DropdownNotification = () => {
             </>
           )}
 
-          {user?.roles === "STORE_REPRESENTATIVE" && (
+          {user?.roles === "PURCHASER" && (
             <>
               {sales && sales?.length > 0 ? (
                 sales.filter(notification => {

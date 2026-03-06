@@ -2,13 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import ErroPage from "../common/ErroPage";
 import Loader from "@/common/Loader";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import Breadcrumb from "../Breadcrumb";
 import { NotificationTable } from "./NotificationTable";
 import { selectCurrentUser } from "@/redux/authSlice";
-import { useCreateOrderItemNoteMutation} from "@/redux/order/orderItemNotesApiSlice";
+import { useCreateOrderItemNoteMutation } from "@/redux/order/orderItemNotesApiSlice";
 import { OrderItemNotes } from "@/types/OrderItemNotes";
-import { useGetOrderItemsQuery, useUpdateOrderItemMutation } from "@/redux/order/orderApiSlice";
+import { useGetOrderQuery, useGetOrderItemsQuery, useUpdateOrderItemMutation } from "@/redux/order/orderApiSlice";
 import { useAssignedMachinesQuery } from "@/redux/machines/assignMachineApiSlice";
 import { toast } from "react-toastify";
 import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
@@ -18,9 +18,10 @@ import { handleApiError } from "@/utils/errorHandling";
 
 
 export const Notifications = () => {
-  const { id } = useParams<{ id: string }>()
+  const { id } = useParams<{ id: string }>();
   const user = useSelector(selectCurrentUser);
-  const { data: orderData, isLoading, error, isError, isSuccess, refetch } = useGetOrderItemsQuery(id ? id : '');
+  const { data: order, isLoading: isOrderLoading } = useGetOrderQuery(id ?? "");
+  const { data: orderData, isLoading, error, isError, isSuccess, refetch } = useGetOrderItemsQuery(id ?? "");
   const [updateOrderItem, { isLoading: isUpdatingOrderItem }] = useUpdateOrderItemMutation();
   const [createOrderItemNote, { isLoading: isCreatingNote }] = useCreateOrderItemNoteMutation()
   
@@ -30,14 +31,15 @@ export const Notifications = () => {
     limit: 1000 
   });
 
-  const [proofReadyOrders, setProofReadyOrders] = useState<OrderItemType[]>([]);
-  const [pendingApprovalOrders, setPendingApprovalOrders] = useState<OrderItemType[]>([]);
-  const [printReadyOrders, setPrintReadyOrders] = useState<OrderItemType[]>([]);
-  const [qualityControl, setQualityControl] = useState<OrderItemType[]>([]);
-  const [delivery, setDelivery] = useState<OrderItemType[]>([]);
+  // Status tracking tabs aligned with order-to-production flow (Pending → InProgress → Ready → Delivered / Cancelled)
+  const [pendingItems, setPendingItems] = useState<OrderItemType[]>([]);
+  const [inProgressItems, setInProgressItems] = useState<OrderItemType[]>([]);
+  const [readyItems, setReadyItems] = useState<OrderItemType[]>([]);
+  const [deliveredItems, setDeliveredItems] = useState<OrderItemType[]>([]);
+  const [cancelledItems, setCancelledItems] = useState<OrderItemType[]>([]);
 
   const [expandedNotes, setExpandedNotes] = useState<boolean[]>([]);
-  const [activeTabId, setActiveTabId] = useState<string>('proof-ready');
+  const [activeTabId, setActiveTabId] = useState<string>('pending');
   const handleTabChange = (id: string) => {
     setActiveTabId(id);
   };
@@ -46,17 +48,16 @@ export const Notifications = () => {
   const [showPopover, setShowPopover] = useState<number | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  const proofReadyPopoverRef = useRef<HTMLDivElement>(null);
-  const pendingApprovalPopoverRef = useRef<HTMLDivElement>(null);
-  const printReadyPopoverRef = useRef<HTMLDivElement>(null);
-  const qualityControlPopoverRef = useRef<HTMLDivElement>(null);
-  const deliveryPopoverRef = useRef<HTMLDivElement>(null);
+  const pendingPopoverRef = useRef<HTMLDivElement>(null);
+  const inProgressPopoverRef = useRef<HTMLDivElement>(null);
+  const readyPopoverRef = useRef<HTMLDivElement>(null);
+  const deliveredPopoverRef = useRef<HTMLDivElement>(null);
+  const cancelledPopoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement>(null);
-  const dropdownRef = useRef<HTMLElement>(null);
-
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const handleClickOutside = useCallback((event: MouseEvent) => {
-    const refs = [proofReadyPopoverRef, pendingApprovalPopoverRef, printReadyPopoverRef, qualityControlPopoverRef, deliveryPopoverRef];
+    const refs = [pendingPopoverRef, inProgressPopoverRef, readyPopoverRef, deliveredPopoverRef, cancelledPopoverRef];
   
     refs.forEach((ref, index) => {
       if (showPopover === index && ref.current && !ref.current.contains(event.target as Node)) {
@@ -104,25 +105,20 @@ export const Notifications = () => {
       // Filter order items based on user's role and assigned machines
       let filteredOrderData = orderData;
       
-      // Role-based filtering logic
+      // Role-based filtering logic (see FRONTEND_GUIDE.md#user-roles)
       if (user?.roles === 'ADMIN') {
-        // Admin sees all orders
         filteredOrderData = orderData;
-      } else if (user?.roles === 'GRAPHIC_DESIGNER') {
-        // Graphic designers see orders that need design work (Received/Rejected status)
-        // They don't need machine assignments for this role
-        filteredOrderData = orderData.filter(item => 
-          item.status === "Received" || item.status === "Rejected"
+      } else if (user?.roles === 'LAB_TECHNICIAN') {
+        filteredOrderData = orderData.filter(item =>
+          item.status === "Received" || item.status === "Rejected" || item.status === "Edited"
         );
       } else if (user?.roles === 'OPERATOR') {
-        // Operators see orders based on their assigned machines
-        filteredOrderData = orderData.filter(item => 
+        filteredOrderData = orderData.filter(item =>
           userAssignedMachineIds.includes(item.item?.machineId || '')
         );
-      } else if (user?.roles === 'RECEPTION') {
-        // Reception sees orders that need their attention (Received/Rejected/Completed status)
-        filteredOrderData = orderData.filter(item => 
-          item.status === "Received" || item.status === "Rejected" || item.status === "Completed"
+      } else if (user?.roles === 'RECEPTION' || user?.roles === 'DISPENSER') {
+        filteredOrderData = orderData.filter(item =>
+          ["Received", "Rejected", "Completed", "Delivered"].includes(item.status || "")
         );
       } else {
         // For other roles, filter by assigned machines if they have any
@@ -136,11 +132,18 @@ export const Notifications = () => {
         }
       }
       
-      setProofReadyOrders(filteredOrderData.filter((item) => item.status && (item.status === "Rejected" || item.status === "Received")));
-      setPendingApprovalOrders(filteredOrderData.filter((item) => item.status === "Edited"));
-      setPrintReadyOrders(filteredOrderData.filter((item) => item.status === "Approved"));
-      setQualityControl(filteredOrderData.filter((item) => item.status === "Printed" || item.status === "Void"));
-      setDelivery(filteredOrderData.filter((item) => item.status === "Completed" || item.status === "Delivered"));
+      // Map statuses to production flow tabs (support both standard and legacy status values)
+      const isPending = (s: string) => ["Pending", "Received", "Rejected", "Edited"].includes(s);
+      const isInProgress = (s: string) => ["InProgress", "Approved", "Printed"].includes(s);
+      const isReady = (s: string) => ["Ready", "Completed"].includes(s);
+      const isDelivered = (s: string) => s === "Delivered";
+      const isCancelled = (s: string) => ["Cancelled", "Void"].includes(s);
+
+      setPendingItems(filteredOrderData.filter((item) => item.status && isPending(item.status)));
+      setInProgressItems(filteredOrderData.filter((item) => item.status && isInProgress(item.status)));
+      setReadyItems(filteredOrderData.filter((item) => item.status && isReady(item.status)));
+      setDeliveredItems(filteredOrderData.filter((item) => item.status && isDelivered(item.status)));
+      setCancelledItems(filteredOrderData.filter((item) => item.status && isCancelled(item.status)));
     }
   }, [id, isSuccess, orderData, assignedMachinesData, user]);
     
@@ -154,7 +157,7 @@ export const Notifications = () => {
     }
 
     try {
-      const orderLists = [proofReadyOrders, pendingApprovalOrders, printReadyOrders, qualityControl, delivery];
+      const orderLists = [pendingItems, inProgressItems, readyItems, deliveredItems, cancelledItems];
       const list = orderLists.find(list => list.some(item => item.id === id));
       const itemToUpdate = list?.find(item => item.id === id);
 
@@ -173,11 +176,11 @@ export const Notifications = () => {
   };
 
   const roleCheckers = {
-    proofReady: (role: string) => ["GRAPHIC_DESIGNER", "RECEPTION", "ADMIN"].includes(role),
-    pendingApproval: (role: string) => role === "ADMIN",
-    printReady: (role: string) => ["OPERATOR", "ADMIN"].includes(role),
-    qualityControl: (role: string) => role === "ADMIN",
-    delivery: (role: string) => ["RECEPTION", "ADMIN"].includes(role),
+    pending: (role: string) => ["LAB_TECHNICIAN", "RECEPTION", "ADMIN"].includes(role),
+    inProgress: (role: string) => ["OPERATOR", "ADMIN"].includes(role),
+    ready: (role: string) => ["OPERATOR", "ADMIN"].includes(role),
+    delivered: (role: string) => ["RECEPTION", "DISPENSER", "ADMIN"].includes(role),
+    cancelled: (role: string) => role === "ADMIN",
   };
 
   const handleUpdateNote = async (newNote: OrderItemNotes, index: number) => {
@@ -201,104 +204,139 @@ export const Notifications = () => {
   };
 
 
-  if (isError) return <ErroPage error={error.toString()} />
-  if (isLoading || isCreatingNote || isUpdatingOrderItem || assignedMachinesLoading) return <Loader />
+  if (isError) return <ErroPage error={error?.toString() ?? "Failed to load order items"} />;
+  if (isOrderLoading || isLoading || isCreatingNote || isUpdatingOrderItem || assignedMachinesLoading) return <Loader />;
 
+  const hasItems = orderData && orderData.length > 0;
   const tabs = [
-    { id: 'proof-ready', label: `Proof ready (${proofReadyOrders.length})` },
-    { id: 'pending', label: `Pending (${pendingApprovalOrders.length})` },
-    { id: 'print-ready', label: `Print ready (${printReadyOrders.length})` },
-    { id: 'quality-control', label: `Quality control (${qualityControl.length})` },
-    { id: 'delivery', label: `Delivery (${delivery.length})` },
+    { id: 'pending', label: `Pending (${pendingItems.length})` },
+    { id: 'in-progress', label: `In progress (${inProgressItems.length})` },
+    { id: 'ready', label: `Ready (${readyItems.length})` },
+    { id: 'delivered', label: `Delivered (${deliveredItems.length})` },
+    { id: 'cancelled', label: `Cancelled (${cancelledItems.length})` },
   ];
 
   return (
     <>
-      <Breadcrumb pageName="Order item list" />
-      <Tabs tabs={tabs} activeTabId={activeTabId} onTabChange={handleTabChange} />
-      <div className="rounded-sm border border-stroke border-t-0 bg-white px-4 pt-6 pb-2.5 shadow-default dark:border-strokedark dark:bg-boxdark">
-        {activeTabId === "proof-ready" && (
-          <NotificationTable
-            title={`Proof ready orders`}
-            orders={proofReadyOrders}
-            handleAction={handleAction}
-            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.proofReady)}
-            handleUpdateNote={handleUpdateNote}
-            showPopover={showPopover}
-            popoverRef={proofReadyPopoverRef}
-            user={user}
-            status1={{ label: "Edited", value: "Edited" }}
-            status2={{ label: "", value: "" }}
-            expandedNotes={expandedNotes}
-            setExpandedNotes={setExpandedNotes}
-          />
-        )}
+      <Breadcrumb pageName="Order notifications" />
+      {order && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 rounded-sm border border-stroke bg-white px-4 py-3 shadow-default dark:border-strokedark dark:bg-boxdark">
+          <Link
+            to={`/dashboard/order/${id}`}
+            className="text-primary font-medium hover:underline dark:text-primary"
+          >
+            ← Back to order
+          </Link>
+          <span className="text-body dark:text-bodydark">
+            {order.series && (
+              <>
+                <span className="font-medium text-black dark:text-white">{order.series}</span>
+                {order.customer?.fullName && (
+                  <span className="ml-2"> · {order.customer.fullName}</span>
+                )}
+              </>
+            )}
+          </span>
+        </div>
+      )}
+      {!id ? (
+        <div className="rounded-sm border border-stroke bg-white px-4 py-8 text-center dark:border-strokedark dark:bg-boxdark">
+          <p className="text-body dark:text-bodydark">No order selected.</p>
+        </div>
+      ) : !hasItems ? (
+        <div className="rounded-sm border border-stroke bg-white px-4 py-8 text-center dark:border-strokedark dark:bg-boxdark">
+          <p className="text-body dark:text-bodydark">This order has no items yet.</p>
+          <Link to={`/dashboard/order/${id}`} className="mt-2 inline-block text-primary hover:underline dark:text-primary">
+            View order
+          </Link>
+        </div>
+      ) : (
+        <>
+          <Tabs tabs={tabs} activeTabId={activeTabId} onTabChange={handleTabChange} />
+          <div className="rounded-sm border border-stroke border-t-0 bg-white px-4 pt-6 pb-2.5 shadow-default dark:border-strokedark dark:bg-boxdark">
         {activeTabId === "pending" && (
           <NotificationTable
-            title={`Pending approval orders`}
-            orders={pendingApprovalOrders}
+            title="Pending (not yet in production)"
+            orders={pendingItems}
             handleAction={handleAction}
-            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.pendingApproval)}
+            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.pending)}
             handleUpdateNote={handleUpdateNote}
             showPopover={showPopover}
-            popoverRef={pendingApprovalPopoverRef}
+            popoverRef={pendingPopoverRef}
             user={user}
-            status1={{ label: "Approve", value: "Approved" }}
-            status2={{ label: "Reject", value: "Rejected" }}
+            status1={{ label: "Start production", value: "Printed" }}
+            status2={{ label: "Edit", value: "Edited" }}
             expandedNotes={expandedNotes}
             setExpandedNotes={setExpandedNotes}
           />
         )}
-        {activeTabId === "print-ready" && (
+        {activeTabId === "in-progress" && (
           <NotificationTable
-            title={`Print ready orders`}
-            orders={printReadyOrders}
+            title="In progress (lens in production)"
+            orders={inProgressItems}
             handleAction={handleAction}
-            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.printReady)}
+            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.inProgress)}
             handleUpdateNote={handleUpdateNote}
             showPopover={showPopover}
-            popoverRef={printReadyPopoverRef}
+            popoverRef={inProgressPopoverRef}
             user={user}
-            status1={{ label: "print", value: "Printed" }}
-            status2={{ label: "Reject", value: "Rejected" }}
+            status1={{ label: "Mark ready", value: "Completed" }}
+            status2={{ label: "Cancel", value: "Void" }}
             expandedNotes={expandedNotes}
             setExpandedNotes={setExpandedNotes}
           />
         )}
-        {activeTabId === "quality-control" && (
+        {activeTabId === "ready" && (
           <NotificationTable
-            title={`Quality control and approval orders`}
-            orders={qualityControl}
+            title="Ready (production done)"
+            orders={readyItems}
             handleAction={handleAction}
-            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.qualityControl)}
+            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.ready)}
             handleUpdateNote={handleUpdateNote}
             showPopover={showPopover}
-            popoverRef={qualityControlPopoverRef}
+            popoverRef={readyPopoverRef}
             user={user}
-            status1={{ label: "Approve", value: "Completed" }}
-            status2={{ label: "Void", value: "Void" }}
-            expandedNotes={expandedNotes}
-            setExpandedNotes={setExpandedNotes}
-          />
-        )}
-        {activeTabId === "delivery" && (
-          <NotificationTable
-            title={`Delivery and shipping orders`}
-            orders={delivery}
-            handleAction={handleAction}
-            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.delivery)}
-            handleUpdateNote={handleUpdateNote}
-            showPopover={showPopover}
-            popoverRef={deliveryPopoverRef}
-            user={user}
-            status1={{ label: "Deliver", value: "Delivered" }}
+            status1={{ label: "Mark delivered", value: "Delivered" }}
             status2={{ label: "", value: "" }}
             expandedNotes={expandedNotes}
             setExpandedNotes={setExpandedNotes}
           />
         )}
-      </div>
+        {activeTabId === "delivered" && (
+          <NotificationTable
+            title="Delivered"
+            orders={deliveredItems}
+            handleAction={handleAction}
+            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.delivered)}
+            handleUpdateNote={handleUpdateNote}
+            showPopover={showPopover}
+            popoverRef={deliveredPopoverRef}
+            user={user}
+            status1={{ label: "", value: "" }}
+            status2={{ label: "", value: "" }}
+            expandedNotes={expandedNotes}
+            setExpandedNotes={setExpandedNotes}
+          />
+        )}
+        {activeTabId === "cancelled" && (
+          <NotificationTable
+            title="Cancelled"
+            orders={cancelledItems}
+            handleAction={handleAction}
+            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.cancelled)}
+            handleUpdateNote={handleUpdateNote}
+            showPopover={showPopover}
+            popoverRef={cancelledPopoverRef}
+            user={user}
+            status1={{ label: "", value: "" }}
+            status2={{ label: "", value: "" }}
+            expandedNotes={expandedNotes}
+            setExpandedNotes={setExpandedNotes}
+          />
+        )}
+          </div>
+        </>
+      )}
     </>
   );
-
 };

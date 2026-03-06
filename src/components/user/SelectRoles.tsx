@@ -36,8 +36,14 @@ const SelectRoles: React.FC<SelectRolesProps> = ({ selectedRoles, onRolesChange 
                     <option value="USER" className="text-body dark:text-bodydark">
                         User
                     </option>
-                    <option value="GRAPHIC_DESIGNER" className="text-body dark:text-bodydark">
-                        Graphic designer
+                    <option value="ADMIN" className="text-body dark:text-bodydark">
+                        Admin
+                    </option>
+                    <option value="RECEPTION" className="text-body dark:text-bodydark">
+                        Reception
+                    </option>
+                    <option value="LAB_TECHNICIAN" className="text-body dark:text-bodydark">
+                        Lab technician
                     </option>
                     <option value="OPERATOR" className="text-body dark:text-bodydark">
                         Operator
@@ -45,11 +51,8 @@ const SelectRoles: React.FC<SelectRolesProps> = ({ selectedRoles, onRolesChange 
                     <option value="FINANCE" className="text-body dark:text-bodydark">
                         Finance
                     </option>
-                    <option value="STORE_REPRESENTATIVE" className="text-body dark:text-bodydark">
-                        Store representative
-                    </option>
-                    <option value="RECEPTION" className="text-body dark:text-bodydark">
-                        Reception
+                    <option value="DISPENSER" className="text-body dark:text-bodydark">
+                        Dispenser
                     </option>
                     <option value="PURCHASER" className="text-body dark:text-bodydark">
                         Purchaser

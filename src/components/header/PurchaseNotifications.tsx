@@ -136,7 +136,7 @@ export const PurchaseNotifications = () => {
 
     const roleCheckers = {
         pendingApproval: (role: string) => ["FINANCE", "ADMIN"].includes(role),
-        receiveReady: (role: string) => ["STORE_REPRESENTATIVE", "ADMIN"].includes(role),
+        receiveReady: (role: string) => ["PURCHASER", "ADMIN"].includes(role),
     };
 
     const handleUpdateNote = async (newNote: PurchaseItemNoteType, index: number) => {

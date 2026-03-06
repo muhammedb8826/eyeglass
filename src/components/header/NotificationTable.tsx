@@ -1,6 +1,3 @@
-import Loader from "@/common/Loader";
-import { useGetAllServicesQuery } from "@/redux/services/servicesApiSlice";
-import { useGetAllNonStockServicesQuery } from "@/redux/services/nonStockServicesApiSlice";
 import { OrderItemNotes } from "@/types/OrderItemNotes";
 import { OrderItemType } from "@/types/OrderItemType";
 import { UserType } from "@/types/UserType";
@@ -17,12 +14,7 @@ interface NotificationTableProps {
   handleAction: (index: number) => void;
   showPopover: null | number;
   handleModalOpen: (id: string, status: string, index: number, width?: number, height?: number) => void;
-  handleUpdateNote: (
-    newNote: OrderItemNotes,
-    index: number,
-    setExpandedNotes: React.Dispatch<React.SetStateAction<boolean[]>>,
-    expandedNotes: boolean[]
-  ) => void;
+  handleUpdateNote: (newNote: OrderItemNotes, index: number) => void;
   popoverRef: React.RefObject<HTMLDivElement>;
   user: UserType | null;
   status1: { value: string; label: string };
@@ -45,9 +37,6 @@ export const NotificationTable = ({
   expandedNotes,
   setExpandedNotes,
 }: NotificationTableProps) => {
-  const { data: services, isLoading } = useGetAllServicesQuery();
-  const { data: nonStockServices, isLoading: isNonStockServicesLoading } = useGetAllNonStockServicesQuery();
-
   const [newNote, setNewNote] = useState<OrderItemNotes>({
     orderItemId: '',
     text: '',
@@ -71,8 +60,6 @@ export const NotificationTable = ({
     setExpandedNotes(updatedExpandedNotes);
   };
 
-  if (isLoading || isNonStockServicesLoading) return <Loader />
-
   return (
     <div className="max-w-full overflow-x-auto">
       <div>
@@ -88,15 +75,6 @@ export const NotificationTable = ({
                 </th>
                 <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
                   Item
-                </th>
-                <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
-                  Services
-                </th>
-                <th className="py-4 px-4 font-medium text-black dark:text-white">
-                  Width
-                </th>
-                <th className="py-4 px-4 font-medium text-black dark:text-white">
-                  Height
                 </th>
                 <th className="py-4 px-4 font-medium text-black dark:text-white">
                   Quantity
@@ -115,29 +93,16 @@ export const NotificationTable = ({
             <tbody>
               {orders?.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-center">
-                    No data found
+                  <td colSpan={6} className="text-center py-6 text-body dark:text-bodydark">
+                    No items in this list
                   </td>
                 </tr>
               )}
               {orders &&
                 orders.length > 0 &&
                 orders?.map((data, index: number) => {
-                  if (!data.id || (!data.serviceId && !data.nonStockServiceId)) {
-                    return null; // Skip rendering if id or serviceId/nonStockServiceId is undefined
-                  }
+                  if (!data.id) return null;
 
-                  // Get service name from either regular services or non-stock services
-                  console.log('Order item data:', data);
-                  console.log('Service ID:', data.serviceId);
-                  console.log('Non-stock service ID:', data.nonStockServiceId);
-                  console.log('Non-stock service object:', data.nonStockService);
-                  
-                  const serviceName = data.serviceId 
-                    ? services?.find((s) => s.id === data.serviceId)?.name
-                    : data.nonStockService?.name || nonStockServices?.find((s) => s.id === data.nonStockServiceId)?.name || "Service not found";
-                  
-                  console.log('Final service name:', serviceName);
                   return (
                     <React.Fragment key={index}>
                       <tr>
@@ -148,15 +113,6 @@ export const NotificationTable = ({
                           <Link to={`/dashboard/order/${data.orderId}`} className="text-primary dark:text-primary hover:underline">
                             {data.item?.name}
                           </Link>
-                        </td>
-                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                         {serviceName ?? "Service not found"}
-                        </td>
-                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                          {data.width}
-                        </td>
-                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                          {data.height}
                         </td>
                         <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                           {data.quantity}
@@ -188,7 +144,7 @@ export const NotificationTable = ({
                               className="absolute z-40 right-10 mt-2 bg-white divide-y divide-gray-100 rounded-lg shadow w-44"
                             >
                               <ul className="py-2 text-sm text-gray-700">
-                                {data.status !== "Void" && (
+                                {status1.value && data.status !== "Void" && (
                                   <li>
                                     <button
                                       type="button"
@@ -232,7 +188,7 @@ export const NotificationTable = ({
                       </tr>
                       {expandedNotes[index] && (
                         <tr>
-                          <td colSpan={8} className="p-2 border-b border-[#eee] dark:border-strokedark">
+                          <td colSpan={6} className="p-2 border-b border-[#eee] dark:border-strokedark">
                             <div className="relative">
                               <textarea
                                 onChange={(e) =>
@@ -252,9 +208,7 @@ export const NotificationTable = ({
                                       text: newNote.text || (data.orderItemNotes && data.orderItemNotes[index]?.text) || "",
                                       userId: user?.id || "",
                                     },
-                                    index,
-                                    setExpandedNotes,
-                                    expandedNotes
+                                    index
                                   )
                                 }
                               >

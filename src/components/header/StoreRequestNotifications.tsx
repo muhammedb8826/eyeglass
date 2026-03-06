@@ -122,7 +122,7 @@ export const StoreRequestNotifications = () => {
 
 
     const roleCheckers = {
-        pendingStockOutRequests: (role: string) => ['ADMIN', 'STORE_REPRESENTATIVE'].includes(role),
+        pendingStockOutRequests: (role: string) => ['ADMIN', 'PURCHASER'].includes(role),
         approveReadyRequests: (role: string) => ['ADMIN'].includes(role),
     }
 
