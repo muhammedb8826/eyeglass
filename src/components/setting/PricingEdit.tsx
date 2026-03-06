@@ -85,8 +85,6 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
       sellingPrice: parseFloat(formData.sellingPrice.toString()),
       costPrice: parseFloat(formData.costPrice.toString()),
       baseUomId: formData.baseUomId,
-      width: parseFloat(formData.width.toString()),
-      height: parseFloat(formData.height.toString()),
       id: id
     }
 

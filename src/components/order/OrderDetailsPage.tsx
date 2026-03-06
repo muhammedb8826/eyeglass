@@ -73,22 +73,25 @@ const toToolUnitsDetails = (v: number | undefined): number | undefined => {
   return Math.abs(v) > 20 ? v : v * 100;
 };
 
+type ToolValuesPerEyeDetails = { right: number[]; left: number[] };
+
 const computeToolValuesDetails = (
   row: OrderItemRxForToolsDetails,
   base: ItemBaseType | undefined,
-): number[] => {
-  if (!base) return [];
+): ToolValuesPerEyeDetails => {
+  const empty = { right: [], left: [] };
+  if (!base) return empty;
 
   const baseNumeric = Number(base.baseCode);
-  if (!Number.isFinite(baseNumeric)) return [];
+  if (!Number.isFinite(baseNumeric)) return empty;
 
-  // Base (tool units) = baseCode + ADD contribution (e.g. 350 + 25 for +2.50)
   const addTool =
     typeof base.addPower === "number" && !Number.isNaN(base.addPower)
       ? base.addPower * 10
       : 0;
   const baseTool = baseNumeric + addTool;
-  const values: number[] = [];
+  const right: number[] = [];
+  const left: number[] = [];
 
   const rawSphR = row.sphereRight;
   const rawCylR = row.cylinderRight;
@@ -108,28 +111,25 @@ const computeToolValuesDetails = (
     typeof rawCylL === "number" ? Math.abs(rawCylL) : undefined,
   );
 
-  // Right eye:
   if (typeof rawSphR === "number" && typeof sphRToolMag === "number") {
     const sphOffset = rawSphR < 0 ? sphRToolMag : -sphRToolMag;
-    const rSph = baseTool + sphOffset;
-    values.push(rSph);
+    const rSph = Math.round(baseTool + sphOffset);
+    right.push(rSph);
     if (typeof cylRToolMag === "number" && cylRToolMag !== 0) {
-      values.push(rSph + cylRToolMag);
+      right.push(Math.round(rSph + cylRToolMag));
     }
   }
 
-  // Left eye:
   if (typeof rawSphL === "number" && typeof sphLToolMag === "number") {
     const sphOffset = rawSphL < 0 ? sphLToolMag : -sphLToolMag;
-    const lSph = baseTool + sphOffset;
-    values.push(lSph);
+    const lSph = Math.round(baseTool + sphOffset);
+    left.push(lSph);
     if (typeof cylLToolMag === "number" && cylLToolMag !== 0) {
-      values.push(lSph + cylLToolMag);
+      left.push(Math.round(lSph + cylLToolMag));
     }
   }
 
-  // Values are already in tool scale (e.g. 450, 775).
-  return values.map((v) => Math.round(v));
+  return { right, left };
 };
 
 const findMissingToolValuesDetails = (
@@ -672,89 +672,6 @@ export const OrderDetailsPage = () => {
     }
   };
 
-  const handleServiceChange = (index: number, value: string) => {
-    const item = formData[index];
-
-    // Prevent changes if the item is in an approved state
-    if (
-      item.status !== "Edited" &&
-      item.status !== "Received" &&
-      item.status !== "Rejected"
-    ) {
-      toast.error("You cannot edit this item because it has been approved");
-      return;
-    }
-    const selectedService = services?.find((service) => service.id === value);
-    const selectedNonStockService = nonStockServices?.find((service) => service.id === value);
-
-    if (selectedService || selectedNonStockService) {
-      const updatedFormData = [...formData];
-      updatedFormData[index] = {
-        ...updatedFormData[index],
-        serviceId: value,
-      };
-
-      const quantity = parseFloat(updatedFormData[index].quantity.toString());
-      const constant = updatedFormData[index].constant;
-
-      const selectedItem = items?.find(
-        (item) => item.id === updatedFormData[index].itemId
-      );
-
-      if (selectedItem) {
-        updatedFormData[index].unitPrice = parseFloat(
-          calculateUnitPrice(
-            updatedFormData[index],
-            selectedItem,
-            index
-          )?.toString() || "0"
-        );
-        updatedFormData[index].totalAmount = parseFloat(
-          calculateUnitPrice(
-            updatedFormData[index],
-            selectedItem,
-            index
-          )?.toString() || "0"
-        );
-      }
-
-      if (!isNaN(quantity) && !constant) {
-        const selectedItem = items?.find(
-          (item) => item.id === updatedFormData[index].itemId
-        );
-        if (selectedItem) {
-          updatedFormData[index].unitPrice = parseFloat(
-            calculateUnitPriceForNonAreaItems(
-              updatedFormData[index],
-              selectedItem,
-              index
-            )?.toString() || "0"
-          );
-          updatedFormData[index].totalAmount = parseFloat(
-            calculateUnitPriceForNonAreaItems(
-              updatedFormData[index],
-              selectedItem,
-              index
-            )?.toString() || "0"
-          );
-        }
-      }
-
-      // Find the matching pricing based on itemId and serviceId
-      const filterSellingPrice = pricings?.find(
-        (pricing) =>
-          pricing.itemId === updatedFormData[index].itemId &&
-          (pricing.serviceId === value || pricing.nonStockServiceId === value)
-      );
-
-      if (filterSellingPrice) {
-        updatedFormData[index].pricingId = filterSellingPrice.id;
-      }
-
-      // Update the form data with the new pricingId and unit price
-      setFormData(updatedFormData);
-    }
-  };
 
   const calculateUnitPrice = (
     formDataItem: OrderItemType,
@@ -1010,6 +927,49 @@ export const OrderDetailsPage = () => {
 
       return updatedFormData;
     });
+  };
+
+  const handleQuantityPerEyeChange = (
+    index: number,
+    side: 'quantityRight' | 'quantityLeft',
+    value: string,
+  ) => {
+    const num = value === '' ? undefined : parseFloat(value);
+    if (num !== undefined && Number.isNaN(num)) return;
+
+    setFormData((prevFormData) => {
+      const updatedFormData = [...prevFormData];
+      const row = updatedFormData[index];
+      const legacyR = parseFloat(row.quantity?.toString() || '0') || 0;
+      const nextRight = side === 'quantityRight' ? num : (row.quantityRight ?? legacyR);
+      const nextLeft = side === 'quantityLeft' ? num : (row.quantityLeft ?? 0);
+      const r = typeof nextRight === 'number' ? nextRight : 0;
+      const l = typeof nextLeft === 'number' ? nextLeft : 0;
+      updatedFormData[index] = {
+        ...row,
+        [side]: num,
+        quantity: String(r + l),
+      };
+      const qty = r + l;
+      const unit = parseFloat(updatedFormData[index].unitPrice?.toString() || "0");
+      updatedFormData[index].totalAmount = Math.round((qty * unit) * 100) / 100;
+      return updatedFormData;
+    });
+  };
+
+  const handleQuantityPerEyeStep = (
+    index: number,
+    side: 'quantityRight' | 'quantityLeft',
+    delta: number,
+  ) => {
+    const row = formData[index];
+    const legacyR = parseFloat(row.quantity?.toString() || '0') || 0;
+    const current = side === 'quantityRight'
+      ? (row.quantityRight ?? legacyR)
+      : (row.quantityLeft ?? 0);
+    const num = typeof current === 'number' ? current : 0;
+    const next = Math.max(0, num + delta);
+    handleQuantityPerEyeChange(index, side, String(next));
   };
 
   const handleRxNumberChange = (
@@ -1301,23 +1261,6 @@ export const OrderDetailsPage = () => {
     );
   }, [items, formData]);
 
-  const servicesOptions = useMemo(
-    () => {
-      const stockServices = services?.map((service) => ({
-        value: service.id,
-        label: service.name,
-      })) || [];
-      
-      const nonStockServicesList = nonStockServices?.map((service: { id: string; name: string }) => ({
-        value: service.id,
-        label: service.name,
-      })) || [];
-      
-      return [...stockServices, ...nonStockServicesList];
-    },
-    [services, nonStockServices]
-  );
-
   const [showPopover, setShowPopover] = useState<number | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, isAbove: false });
@@ -1444,9 +1387,17 @@ export const OrderDetailsPage = () => {
       // Check if the service is a non-stock service
       const isNonStockService = nonStockServices?.some(service => service.id === data.serviceId);
 
-      const qty = parseFloat(data.quantity?.toString() || "0");
+      const r = data.quantityRight;
+      const l = data.quantityLeft;
+      const usePerEye =
+        typeof r === 'number' && !Number.isNaN(r) && typeof l === 'number' && !Number.isNaN(l);
+      const qty = usePerEye ? r + l : parseFloat(data.quantity?.toString() || "0");
       const unit = parseFloat(data.unitPrice?.toString() || "0");
       const lineTotal = Math.round((qty * unit) * 100) / 100;
+
+      const quantityPayload = usePerEye
+        ? { quantityRight: r, quantityLeft: l, quantity: String(qty) }
+        : { quantity: data.quantity };
 
       return {
         itemId: data.itemId,
@@ -1461,7 +1412,7 @@ export const OrderDetailsPage = () => {
         totalAmount: lineTotal,
         adminApproval: data.adminApproval,
         uomId: data.uomId,
-        quantity: data.quantity,
+        ...quantityPayload,
         unitPrice: data.unitPrice,
         description: data.description,
         isDiscounted: data.isDiscounted,
@@ -1613,9 +1564,6 @@ export const OrderDetailsPage = () => {
                 <th className="min-w-[200px] py-4 px-4 font-medium text-black dark:text-white">
                   Item
                 </th>
-                <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
-                  Service
-                </th>
                 <th className="min-w-[100px] py-4 px-4 font-medium text-black dark:text-white">
                   Qty
                 </th>
@@ -1630,7 +1578,7 @@ export const OrderDetailsPage = () => {
             <tbody>
               {formData && formData.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center text-black dark:text-white">
+                  <td colSpan={5} className="text-center text-black dark:text-white">
                     No data found
                   </td>
                 </tr>
@@ -1643,11 +1591,6 @@ export const OrderDetailsPage = () => {
                     </td>
                     <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
                       {items?.find((item) => item.id === data.itemId)?.name || ""}
-                    </td>
-                    <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
-                      {services?.find((service) => service.id === data.serviceId)?.name || 
-                       nonStockServices?.find(service => service.id === data.serviceId)?.name || 
-                       ""}
                     </td>
                     <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
                       {data.quantity}
@@ -1818,9 +1761,6 @@ export const OrderDetailsPage = () => {
                               <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
                                 Item
                               </th>
-                              <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
-                                Service
-                              </th>
                               <th className="py-4 px-4 font-medium text-black dark:text-white">
                                 UOM
                               </th>
@@ -1847,7 +1787,7 @@ export const OrderDetailsPage = () => {
                           <tbody>
                             {formData && formData.length === 0 && (
                               <tr>
-                                <td colSpan={9} className="text-center text-black dark:text-white">
+                                <td colSpan={8} className="text-center text-black dark:text-white">
                                   No data found
                                 </td>
                               </tr>
@@ -1875,20 +1815,6 @@ export const OrderDetailsPage = () => {
                                   </td>
                                   <td className="min-w-[220px] relative border border-stroke dark:border-strokedark">
                                     <SelectOptions
-                                      options={servicesOptions}
-                                      defaultOptionText=""
-                                      selectedOption={formData[index].serviceId || ''}
-                                      onOptionChange={(value) =>
-                                        handleServiceChange(index, value)
-                                      }
-                                      containerMargin=""
-                                      labelMargin=""
-                                      border=""
-                                      title="Select services"
-                                    />
-                                  </td>
-                                  <td className="min-w-[220px] relative border border-stroke dark:border-strokedark">
-                                    <SelectOptions
                                       options={
                                         formData[index]?.uomsOptions?.map(
                                           (uom) => ({
@@ -1909,21 +1835,81 @@ export const OrderDetailsPage = () => {
                                     />
                                   </td>
                                   <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
-                                    <input
-                                      title="Quantity of the product"
-                                      type="number"
-                                      name="quantity"
-                                      value={data.quantity}
-                                      min={1}
-                                      required
-                                      onChange={(e) =>
-                                        handleQuantityChange(
-                                          index,
-                                          e.target.value
-                                        )
-                                      }
-                                      className="w-full rounded  bg-transparent px-2 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:text-white dark:focus:border-primary"
-                                    />
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <div className="flex items-center gap-0.5">
+                                        <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 w-8 shrink-0">R</span>
+                                        <button
+                                          type="button"
+                                          title="Decrease right quantity"
+                                          onClick={() => handleQuantityPerEyeStep(index, 'quantityRight', -1)}
+                                          className="flex h-8 w-7 shrink-0 items-center justify-center rounded border border-stroke bg-gray-100 text-sm font-medium hover:bg-gray-200 dark:border-strokedark dark:bg-meta-4 dark:hover:bg-meta-3"
+                                        >
+                                          −
+                                        </button>
+                                        <input
+                                          title="Quantity right eye"
+                                          type="number"
+                                          min={0}
+                                          value={data.quantityRight ?? data.quantity ?? ''}
+                                          onChange={(e) =>
+                                            handleQuantityPerEyeChange(index, 'quantityRight', e.target.value)
+                                          }
+                                          className="h-8 w-10 rounded border border-stroke bg-transparent px-0.5 text-center text-sm font-medium outline-none transition focus:border-primary dark:border-strokedark dark:bg-form-input dark:text-white"
+                                        />
+                                        <button
+                                          type="button"
+                                          title="Increase right quantity"
+                                          onClick={() => handleQuantityPerEyeStep(index, 'quantityRight', 1)}
+                                          className="flex h-8 w-7 shrink-0 items-center justify-center rounded border border-stroke bg-gray-100 text-sm font-medium hover:bg-gray-200 dark:border-strokedark dark:bg-meta-4 dark:hover:bg-meta-3"
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                      <div className="flex items-center gap-0.5">
+                                        <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 w-8 shrink-0">L</span>
+                                        <button
+                                          type="button"
+                                          title="Decrease left quantity"
+                                          onClick={() => handleQuantityPerEyeStep(index, 'quantityLeft', -1)}
+                                          className="flex h-8 w-7 shrink-0 items-center justify-center rounded border border-stroke bg-gray-100 text-sm font-medium hover:bg-gray-200 dark:border-strokedark dark:bg-meta-4 dark:hover:bg-meta-3"
+                                        >
+                                          −
+                                        </button>
+                                        <input
+                                          title="Quantity left eye"
+                                          type="number"
+                                          min={0}
+                                          value={data.quantityLeft ?? ''}
+                                          onChange={(e) =>
+                                            handleQuantityPerEyeChange(index, 'quantityLeft', e.target.value)
+                                          }
+                                          className="h-8 w-10 rounded border border-stroke bg-transparent px-0.5 text-center text-sm font-medium outline-none transition focus:border-primary dark:border-strokedark dark:bg-form-input dark:text-white"
+                                        />
+                                        <button
+                                          type="button"
+                                          title="Increase left quantity"
+                                          onClick={() => handleQuantityPerEyeStep(index, 'quantityLeft', 1)}
+                                          className="flex h-8 w-7 shrink-0 items-center justify-center rounded border border-stroke bg-gray-100 text-sm font-medium hover:bg-gray-200 dark:border-strokedark dark:bg-meta-4 dark:hover:bg-meta-3"
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                      <div className="flex items-center gap-1 border-l border-stroke pl-2 dark:border-strokedark">
+                                        <span className="text-[10px] text-gray-500 dark:text-gray-400 shrink-0">Total</span>
+                                        <input
+                                          title="Quantity total (or single)"
+                                          type="number"
+                                          name="quantity"
+                                          value={data.quantity}
+                                          min={0}
+                                          required
+                                          onChange={(e) =>
+                                            handleQuantityChange(index, e.target.value)
+                                          }
+                                          className="h-8 w-10 rounded border border-stroke bg-transparent px-0.5 text-center text-sm font-medium outline-none transition focus:border-primary dark:border-strokedark dark:bg-form-input dark:text-white"
+                                        />
+                                      </div>
+                                    </div>
                                   </td>
                                   <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
                                     {Number(data.unitPrice || 0).toFixed(2)}
@@ -2111,7 +2097,7 @@ export const OrderDetailsPage = () => {
                               {activeRxRow === index && (
                                 <tr>
                                   <td
-                                    colSpan={9}
+                                    colSpan={8}
                                     className="bg-gray-50 dark:bg-boxdark p-4 border border-t-0 border-stroke dark:border-strokedark"
                                   >
                                     <div className="grid gap-4 md:grid-cols-4">
@@ -2421,38 +2407,52 @@ export const OrderDetailsPage = () => {
                                               const baseFromList = basesForItem.find((b) => b.id === data.itemBaseId);
                                               const baseForRow = (itemBaseFromRow || baseFromList) as ItemBaseType | undefined;
 
-                                              // Require full Rx (SPH & CYL for both eyes) before checking tools
-                                              const hasFullRx =
-                                                typeof data.sphereRight === "number" &&
-                                                typeof data.cylinderRight === "number" &&
-                                                typeof data.sphereLeft === "number" &&
-                                                typeof data.cylinderLeft === "number";
-                                              if (!hasFullRx) return null;
-
-                                              const toolValues = computeToolValuesDetails(data, baseForRow);
-                                              if (!toolValues.length) return null;
-
+                                              const { right: rightValues, left: leftValues } = computeToolValuesDetails(data, baseForRow);
                                               const labTools = labToolsData?.labTools ?? [];
-                                              const missing = labTools.length
-                                                ? findMissingToolValuesDetails(toolValues, labTools)
+                                              const hasAny = rightValues.length > 0 || leftValues.length > 0;
+                                              if (!hasAny) return null;
+
+                                              const missingRight = labTools.length
+                                                ? findMissingToolValuesDetails(rightValues, labTools)
                                                 : [];
+                                              const missingLeft = labTools.length
+                                                ? findMissingToolValuesDetails(leftValues, labTools)
+                                                : [];
+
+                                              const lineRight = rightValues.length > 0 ? `Right: ${rightValues.join(", ")}` : null;
+                                              const lineLeft = leftValues.length > 0 ? `Left: ${leftValues.join(", ")}` : null;
+                                              const calculatedLine = [lineRight, lineLeft].filter(Boolean).join(". ");
 
                                               return (
                                                 <>
-                                                  <p className="mt-1 text-[11px] text-slate-600 dark:text-slate-300">
-                                                    Calculated tools: {toolValues.join(", ")}
+                                                  <p className="mt-1 text-[11px] font-medium text-black dark:text-white">
+                                                    Calculated tools — {calculatedLine}
                                                   </p>
                                                   {labTools.length > 0 && (
-                                                    missing.length === 0 ? (
-                                                      <p className="mt-0.5 text-[11px] text-emerald-600">
-                                                        Lab tools available for this Rx + base.
-                                                      </p>
-                                                    ) : (
-                                                      <p className="mt-0.5 text-[11px] text-red-600">
-                                                        Cannot produce lens: missing lab tools for values{" "}
-                                                        {missing.join(", ")}.
-                                                      </p>
-                                                    )
+                                                    <div className="mt-0.5 space-y-0.5">
+                                                      {rightValues.length > 0 && (
+                                                        missingRight.length === 0 ? (
+                                                          <p className="text-[11px] font-medium text-success">
+                                                            Right lens: lab tools available.
+                                                          </p>
+                                                        ) : (
+                                                          <p className="text-[11px] font-medium text-danger">
+                                                            Right lens: missing lab tools for values {missingRight.join(", ")}.
+                                                          </p>
+                                                        )
+                                                      )}
+                                                      {leftValues.length > 0 && (
+                                                        missingLeft.length === 0 ? (
+                                                          <p className="text-[11px] font-medium text-success">
+                                                            Left lens: lab tools available.
+                                                          </p>
+                                                        ) : (
+                                                          <p className="text-[11px] font-medium text-danger">
+                                                            Left lens: missing lab tools for values {missingLeft.join(", ")}.
+                                                          </p>
+                                                        )
+                                                      )}
+                                                    </div>
                                                   )}
                                                 </>
                                               );

@@ -20,6 +20,8 @@ export interface OrderItemType {
     adminApproval: false,
     uomId: string,
     quantity: string,
+    quantityRight?: number,
+    quantityLeft?: number,
     unitPrice: number,
     description: "",
     isDiscounted: boolean,
