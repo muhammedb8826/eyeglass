@@ -115,7 +115,6 @@ export const apiSlice = createApi({
         'Machines',
         'OrderItems',
         'FixedCosts',
-        'FilePaths',
         'Services',
         'NonStockServices',
         'Account',

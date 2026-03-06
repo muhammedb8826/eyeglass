@@ -45,7 +45,6 @@ import { OrdersReport } from "./components/reports/OrdersReport";
 import { PurchasesReport } from "./components/reports/PurchasesReport";
 import { StoreRequestsReport } from "./components/reports/StoreRequestsReport";
 import FixedCost from "./components/setting/FixedCost";
-import FilePath from "./components/setting/FilePath";
 
 const App = () => {
 
@@ -78,7 +77,6 @@ const App = () => {
           <Route path="settings/pricings" element={<Pricings />} />
           <Route path="settings/discounts" element={<Discounts />} />
           <Route path="settings/fixed-cost" element={<FixedCost />} />
-          <Route path="settings/file-path" element={<FilePath />} />
           <Route path="commission" element={<CommissionList />} />
           <Route path="commission/:id" element={<CommissionDetails />} />
           <Route path="inventory/items" element={<Items />} />
