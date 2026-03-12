@@ -8,9 +8,6 @@ import { useGetAllUomsQuery } from "@/redux/unit/uomApiSlice";
 import { useGetAllOrdersQuery } from "@/redux/order/orderApiSlice";
 import { useGetAllItemsQuery } from "@/redux/items/itemsApiSlice";
 import { useGetAllServicesQuery } from "@/redux/services/servicesApiSlice";
-import { useAssignedMachinesQuery } from "@/redux/machines/assignMachineApiSlice";
-import { useSelector } from "react-redux";
-import { selectCurrentUser } from "@/redux/authSlice";
 
 const tabs = [
   { id: 'home', label: 'Home' },
@@ -18,8 +15,6 @@ const tabs = [
 ];
 
 export const OperatorStock = () => {
-  const user = useSelector(selectCurrentUser);
-
   const [search, setSearch] = useState('');
   const [printedSearch, setPrintedSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -30,10 +25,6 @@ export const OperatorStock = () => {
   const { data: orders, isLoading: ordersLoading, isError: ordersError, refetch: ordersRefetch } = useGetAllOrdersQuery();
   const { data: items, isLoading: itemsLoading, isError: itemsError } = useGetAllItemsQuery();
   const { data: services, isLoading: servicesLoading, isError: servicesError } = useGetAllServicesQuery();
-  const { data: assignedMachinesData, isLoading: assignedMachinesLoading } = useAssignedMachinesQuery({ 
-    page: 1, 
-    limit: 1000 
-  });
 
 console.log({
   'orders': orders,
@@ -70,7 +61,7 @@ console.log({
     return <ErroPage error={`${error}`} />;
   }
 
-  if (isLoading || uomsLoading || ordersLoading || itemsLoading || servicesLoading || assignedMachinesLoading) {
+  if (isLoading || uomsLoading || ordersLoading || itemsLoading || servicesLoading) {
     return <Loader />;
   }
 
@@ -78,11 +69,6 @@ console.log({
 
   const { operatorStocks, total } = data;
   const totalPages = Math.ceil(total / limit);
-  
-  // Get user's assigned machine IDs
-  const userAssignedMachineIds = assignedMachinesData?.userMachines
-    ?.filter(assignment => assignment.user.email === user?.email)
-    ?.map(assignment => assignment.machine.id) || [];
 
   // Filter orders that have status from Printed to Delivered and map with related data
   const printedOrders = orders?.flatMap(order => 
@@ -101,14 +87,9 @@ console.log({
       };
     }) || []
   ).filter(orderItem => {
-    // Filter by status
+    // Filter by status only; item-machine links were removed from the backend
     const statusMatch = ['Printed', 'Completed', 'Delivered'].includes(orderItem.status);
-    
-    // Filter by user's assigned machines (if not admin) - check item's machine
-    const machineMatch = user?.roles === 'ADMIN' || 
-      userAssignedMachineIds.includes(orderItem.item?.machineId || '');
-    
-    return statusMatch && machineMatch;
+    return statusMatch;
   }) || [];
   
   // Apply search filter

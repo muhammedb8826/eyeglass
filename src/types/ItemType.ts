@@ -1,4 +1,3 @@
-import { MachineType } from "./MachineType";
 import { ServiceType } from "./ServiceType";
 import { UoMType } from "./UomType";
 import { ItemBaseType } from "./ItemBaseType";
@@ -8,10 +7,7 @@ export interface ItemType {
     itemCode?: string;
     name: string;
     description: string;
-    initial_stock: number;
     reorder_level: number;
-    updated_initial_stock: number;
-    machineId: string;
     createdAt: string;
     updatedAt: string;
     can_be_sold: boolean;
@@ -27,13 +23,7 @@ export interface ItemType {
         uoms: UoMType[];
         constant: boolean;
     },
-    machine: MachineType;
     purchaseUom: UoMType;
     defaultUom: UoMType;
-
-    // Lens metadata for eyeglass blanks
-    lensMaterial?: string;
-    lensIndex?: number;
-    lensType?: string;
     itemBases?: ItemBaseType[];
 }

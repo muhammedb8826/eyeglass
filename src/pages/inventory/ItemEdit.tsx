@@ -5,7 +5,6 @@ import Breadcrumb from "@/components/Breadcrumb";
 import ErroPage from "@/components/common/ErroPage";
 import { selectCurrentUser } from "@/redux/authSlice";
 import { useGetItemQuery, useUpdateItemMutation, useGetItemBasesQuery, useCreateItemBaseMutation, useUpdateItemBaseMutation, useDeleteItemBaseMutation } from "@/redux/items/itemsApiSlice";
-import { useGetAllMachinesQuery } from "@/redux/machines/machinesApiSlice";
 import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
@@ -268,20 +267,13 @@ export const ItemEdit = () => {
   const { data, isLoading, isError, error, refetch } = useGetItemQuery(id)
   const [updateItem, { isLoading: isUpdating }] = useUpdateItemMutation();
   const {data: uniteCategories} = useGetAllUnitsQuery();
-  const { data: machines } = useGetAllMachinesQuery();
   const [formData, setFormData] = useState({
     itemCode: "",
     name: "",
     description: "",
-    machineId: '',
     reorderLevel: 0,
-    initialStock: 0,
-    updatedInitialStock: 0,
     unitCategoryId: '',
     id: "",
-    lensMaterial: "",
-    lensIndex: "",
-    lensType: "",
   });
 
   const [uoms, setUoms] = useState<UoMType[]>([]);
@@ -304,15 +296,9 @@ export const ItemEdit = () => {
         itemCode: data.itemCode || "",
         name: data.name || "",
         description: data.description || "",
-        machineId: data.machineId || "",
         reorderLevel: data.reorder_level || 0,
-        initialStock: data.initial_stock || 0,
-        updatedInitialStock: 0,
         id: data.id || "",
         unitCategoryId: data.unitCategoryId || '',
-        lensMaterial: data.lensMaterial || "",
-        lensIndex: data.lensIndex ? String(data.lensIndex) : "",
-        lensType: data.lensType || "",
       });
       setSalesUom(data.defaultUomId || '');
       setPurchaseUom(data.purchaseUomId || '');
@@ -355,26 +341,14 @@ export const ItemEdit = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const updatedFormData = { ...formData };
-
-    if (data.initial_stock !== formData.initialStock) {
-      updatedFormData.updatedInitialStock = data.initial_stock;
-      updatedFormData.initialStock = formData.initialStock;
-    }
-
     const updatedData = {
-      ...updatedFormData,
-      initial_stock: Number(updatedFormData.initialStock) || 0,
-      updated_initial_stock: Number(updatedFormData.updatedInitialStock) || 0,
-      reorder_level: Number(updatedFormData.reorderLevel) || 0,
+      ...formData,
+      reorder_level: Number(formData.reorderLevel) || 0,
       can_be_sold: canBeSold,
       can_be_purchased: canBePurchased,
       defaultUomId: salesUom,
       purchaseUomId: purchaseUom,
-      itemCode: updatedFormData.itemCode || undefined,
-      lensMaterial: updatedFormData.lensMaterial || undefined,
-      lensType: updatedFormData.lensType || undefined,
-      lensIndex: updatedFormData.lensIndex ? Number(updatedFormData.lensIndex) : undefined,
+      itemCode: formData.itemCode || undefined,
     };
 
     try {
@@ -494,35 +468,6 @@ export const ItemEdit = () => {
                       )}
                     </select>
                   </div>
-                  <div>
-                    <label
-                      htmlFor="machine"
-                      className="mb-3 block text-sm font-medium text-black dark:text-white"
-                    >
-                      Machine
-                    </label>
-                    <select
-                      title="Select Machine"
-                      onChange={handleSelectChange}
-                      value={formData.machineId}
-                      id="machine"
-                      name="machineId"
-                      className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                    >
-                      {machines && machines.length > 0 ? (
-                        <>
-                          <option value="" disabled>Select machine</option>
-                          {machines.map((machine) => (
-                            <option key={machine.id} value={machine.id}>
-                              {machine.name}
-                            </option>
-                          ))}
-                        </>
-                      ) : (
-                        <option value="" disabled>No machines available</option>
-                      )}
-                    </select>
-                  </div>
                 <CheckboxOne isChecked={canBeSold} setIsChecked={setCanBeSold} text={canBeSoldText} />
                 <CheckboxOne isChecked={canBePurchased} setIsChecked={setCanBePurchased} text={canBePurchasedText} />
                 <SelectOptions
@@ -558,75 +503,6 @@ export const ItemEdit = () => {
                     type="number"
                     id="reorderLevel"
                     name="reorderLevel"
-                    min={0}
-                    className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="lensMaterial"
-                    className="mb-3 block text-sm font-medium text-black dark:text-white"
-                  >
-                    Lens material
-                  </label>
-                  <input
-                    onChange={handleChange}
-                    value={formData.lensMaterial}
-                    type="text"
-                    id="lensMaterial"
-                    name="lensMaterial"
-                    className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                    placeholder="e.g. POLYCARBONATE"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="lensIndex"
-                    className="mb-3 block text-sm font-medium text-black dark:text-white"
-                  >
-                    Lens index
-                  </label>
-                  <input
-                    onChange={handleChange}
-                    value={formData.lensIndex}
-                    type="number"
-                    step="0.01"
-                    id="lensIndex"
-                    name="lensIndex"
-                    className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                    placeholder="e.g. 1.59"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="lensType"
-                    className="mb-3 block text-sm font-medium text-black dark:text-white"
-                  >
-                    Lens type
-                  </label>
-                  <input
-                    onChange={handleChange}
-                    value={formData.lensType}
-                    type="text"
-                    id="lensType"
-                    name="lensType"
-                    className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                    placeholder="e.g. SINGLE_VISION"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="initialStock"
-                    className="mb-3 block text-sm font-medium text-black dark:text-white"
-                  >
-                    Initial Stock
-                  </label>
-                  <input
-                    readOnly
-                    value={formData.initialStock}
-                    type="number"
-                    id="initialStock"
-                    name="initialStock"
                     min={0}
                     className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                   />

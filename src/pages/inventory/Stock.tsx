@@ -88,9 +88,6 @@ export const Stock = () => {
           {parseFloat(quantity.toString()).toFixed(2)}
         </td>
         <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-          {item?.initial_stock}
-        </td>
-        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
           {item?.reorder_level}
         </td>
         <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
@@ -151,9 +148,6 @@ export const Stock = () => {
                 </th>
                 <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
                   Onhand quantity
-                </th>
-                <th className="py-4 px-4 font-medium text-black dark:text-white">
-                  Initial stock
                 </th>
                 <th className="py-4 px-4 font-medium text-black dark:text-white">
                   Reorder level

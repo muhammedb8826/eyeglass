@@ -4,7 +4,6 @@ import SelectOptions from "@/common/SelectOptions";
 import Breadcrumb from "@/components/Breadcrumb";
 import { selectCurrentUser } from "@/redux/authSlice";
 import { useCreateItemMutation } from "@/redux/items/itemsApiSlice";
-import { useGetAllMachinesQuery } from "@/redux/machines/machinesApiSlice";
 import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
 import { ChangeEvent, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
@@ -39,21 +38,16 @@ export const ItemRegistration = () => {
   const user = useSelector(selectCurrentUser)
   const [createItem, { isLoading }] = useCreateItemMutation();
   const { data: uniteCategories } = useGetAllUnitsQuery();
-  const { data: machines, isLoading: isMachinesLoading } = useGetAllMachinesQuery();
 
   const [formData, setFormData] = useState({
     itemCode: "",
     name: "",
     description: "",
-    machineId: "",
     reorderLevel: 0,
     initialStock: 0,
     updatedInitialStock: 0,
     quantity: 0,
     unitCategoryId: '',
-    lensMaterial: "",
-    lensIndex: "",
-    lensType: "",
   });
 
   const [uoms, setUoms] = useState<UoMType[]>([]);
@@ -97,7 +91,7 @@ export const ItemRegistration = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.name === '' || formData.machineId === '') {
+    if (formData.name === '') {
       toast.error('Please fill all required fields');
       return
     }
@@ -110,19 +104,13 @@ export const ItemRegistration = () => {
       itemCode: formData.itemCode || undefined,
       name: formData.name,
       description: formData.description,
-      machineId: formData.machineId,
       reorder_level: Number(formData.reorderLevel),
-      initial_stock: Number(formData.initialStock),
-      updated_initial_stock: Number(formData.updatedInitialStock),
       can_be_sold: canBeSold,
       can_be_purchased: canBePurchased,
       defaultUomId: salesUom,
       purchaseUomId: purchaseUom,
       quantity: Number(formData.initialStock),
       unitCategoryId: formData.unitCategoryId,
-      lensMaterial: formData.lensMaterial || undefined,
-      lensType: formData.lensType || undefined,
-      lensIndex: formData.lensIndex ? Number(formData.lensIndex) : undefined,
     };
 
     try {
@@ -166,7 +154,7 @@ export const ItemRegistration = () => {
     setPurchaseUom(value);
   };
 
-  if (isLoading || isMachinesLoading) {
+  if (isLoading) {
     return <Loader />
   }
 
@@ -248,87 +236,7 @@ export const ItemRegistration = () => {
                       )}
                     </select>
                   </div>
-                  <div>
-                    <label
-                      htmlFor="lensMaterial"
-                      className="mb-3 block text-sm font-medium text-black dark:text-white"
-                    >
-                      Lens material
-                    </label>
-                    <input
-                      onChange={handleChange}
-                      value={formData.lensMaterial}
-                      type="text"
-                      id="lensMaterial"
-                      name="lensMaterial"
-                      className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                      placeholder="e.g. POLYCARBONATE"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="lensIndex"
-                      className="mb-3 block text-sm font-medium text-black dark:text-white"
-                    >
-                      Lens index
-                    </label>
-                    <input
-                      onChange={handleChange}
-                      value={formData.lensIndex}
-                      type="number"
-                      step="0.01"
-                      id="lensIndex"
-                      name="lensIndex"
-                      className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                      placeholder="e.g. 1.59"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="lensType"
-                      className="mb-3 block text-sm font-medium text-black dark:text-white"
-                    >
-                      Lens type
-                    </label>
-                    <input
-                      onChange={handleChange}
-                      value={formData.lensType}
-                      type="text"
-                      id="lensType"
-                      name="lensType"
-                      className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                      placeholder="e.g. SINGLE_VISION"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="machine"
-                      className="mb-3 block text-sm font-medium text-black dark:text-white"
-                    >
-                      Machine
-                    </label>
-                    <select
-                      title="Select Machine"
-                      onChange={handleSelectChange}
-                      value={formData.machineId}
-                      id="machine"
-                      name="machineId"
-                      className="w-full rounded-lg border-[1.5px] border-stroke bg-transparent py-2 px-5 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-                    >
-                      {machines && machines.length > 0 ? (
-                        <>
-                          <option value="" disabled>Select machine</option>
-                          {machines.map((machine) => (
-                            <option key={machine.id} value={machine.id}>
-                              {machine.name}
-                            </option>
-                          ))}
-                        </>
-                      ) : (
-                        <option value="" disabled>No machines available</option>
-                      )}
-                    </select>
-                  </div>
+                 
                   <CheckboxOne isChecked={canBeSold} setIsChecked={setCanBeSold} text={canBeSoldText} />
                   <CheckboxOne isChecked={canBePurchased} setIsChecked={setCanBePurchased} text={canBePurchasedText} />
                   <SelectOptions

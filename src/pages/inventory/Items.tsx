@@ -130,12 +130,6 @@ export const Items = () => {
           </NavLink>
         </td>
         <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-          {item?.description}
-        </td>
-        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-         {item.machine?.name}
-        </td>
-        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
           {item?.purchaseUom?.abbreviation}
         </td>
         <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
@@ -251,12 +245,6 @@ export const Items = () => {
                 </th>
                 <th className="min-w-[220px] py-4 px-4 font-medium text-black dark:text-white">
                   Item name
-                </th>
-                <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
-                  Description
-                </th>
-                <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
-                  Machine type
                 </th>
                 <th className="min-w-[150px] py-4 px-4 font-medium text-black dark:text-white">
                   Purchase UOM

@@ -97,12 +97,7 @@ export const Notifications = () => {
 
   useEffect(() => {
     if (isSuccess && orderData && assignedMachinesData) {
-      // Get user's assigned machine IDs
-      const userAssignedMachineIds = assignedMachinesData.userMachines
-        ?.filter(assignment => assignment.user.email === user?.email)
-        ?.map(assignment => assignment.machine.id) || [];
-      
-      // Filter order items based on user's role and assigned machines
+      // Filter order items based on user's role
       let filteredOrderData = orderData;
       
       // Role-based filtering logic (see FRONTEND_GUIDE.md#user-roles)
@@ -113,23 +108,15 @@ export const Notifications = () => {
           item.status === "Received" || item.status === "Rejected" || item.status === "Edited"
         );
       } else if (user?.roles === 'OPERATOR') {
-        filteredOrderData = orderData.filter(item =>
-          userAssignedMachineIds.includes(item.item?.machineId || '')
-        );
+        // Operators now see all items for the order, scoped by status tabs below
+        filteredOrderData = orderData;
       } else if (user?.roles === 'RECEPTION' || user?.roles === 'DISPENSER') {
         filteredOrderData = orderData.filter(item =>
           ["Received", "Rejected", "Completed", "Delivered"].includes(item.status || "")
         );
       } else {
-        // For other roles, filter by assigned machines if they have any
-        if (userAssignedMachineIds.length > 0) {
-          filteredOrderData = orderData.filter(item => 
-            userAssignedMachineIds.includes(item.item?.machineId || '')
-          );
-        } else {
-          // If no machines assigned, show no orders
-          filteredOrderData = [];
-        }
+        // Other roles currently see no order items here
+        filteredOrderData = [];
       }
       
       // Map statuses to production flow tabs (support both standard and legacy status values)
