@@ -11,6 +11,7 @@ import { Link } from "react-router-dom";
 interface NotificationTableProps {
   title: string;
   orders: OrderItemType[];
+  statusLabel: string;
   handleAction: (index: number) => void;
   showPopover: null | number;
   handleModalOpen: (id: string, status: string, index: number, width?: number, height?: number) => void;
@@ -26,6 +27,7 @@ interface NotificationTableProps {
 export const NotificationTable = ({
   title,
   orders,
+  statusLabel,
   handleAction,
   showPopover,
   handleModalOpen,
@@ -83,6 +85,12 @@ export const NotificationTable = ({
                   Status
                 </th>
                 <th className="py-4 px-4 font-medium text-black dark:text-white">
+                  Approval
+                </th>
+                <th className="py-4 px-4 font-medium text-black dark:text-white">
+                  QC
+                </th>
+                <th className="py-4 px-4 font-medium text-black dark:text-white">
                   Note
                 </th>
                 <th className="py-4 px-4 font-medium text-black dark:text-white">
@@ -93,7 +101,7 @@ export const NotificationTable = ({
             <tbody>
               {orders?.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center py-6 text-body dark:text-bodydark">
+                  <td colSpan={8} className="text-center py-6 text-body dark:text-bodydark">
                     No items in this list
                   </td>
                 </tr>
@@ -118,7 +126,35 @@ export const NotificationTable = ({
                           {data.quantity}
                         </td>
                         <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                          {data.status}
+                          {statusLabel}
+                        </td>
+                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
+                              data.approvalStatus === "Approved"
+                                ? "bg-success/10 text-success"
+                                : data.approvalStatus
+                                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300"
+                                : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                            }`}
+                          >
+                            {data.approvalStatus || "—"}
+                          </span>
+                        </td>
+                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
+                              data.qualityControlStatus === "Passed"
+                                ? "bg-success/10 text-success"
+                                : data.qualityControlStatus === "Failed"
+                                ? "bg-danger/10 text-danger"
+                                : data.qualityControlStatus
+                                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300"
+                                : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                            }`}
+                          >
+                            {data.qualityControlStatus || "—"}
+                          </span>
                         </td>
                         <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                           <button
@@ -144,7 +180,7 @@ export const NotificationTable = ({
                               className="absolute z-40 right-10 mt-2 bg-white divide-y divide-gray-100 rounded-lg shadow w-44"
                             >
                               <ul className="py-2 text-sm text-gray-700">
-                                {status1.value && data.status !== "Void" && (
+                                {status1.value && data.status !== "Cancelled" && (
                                   <li>
                                     <button
                                       type="button"
@@ -163,7 +199,7 @@ export const NotificationTable = ({
                                   </li>
                                 )}
 
-                                {status2.value && data.status !== "Void" && (
+                                {status2.value && data.status !== "Cancelled" && (
                                   <li>
                                     <button
                                       type="button"
@@ -188,7 +224,7 @@ export const NotificationTable = ({
                       </tr>
                       {expandedNotes[index] && (
                         <tr>
-                          <td colSpan={6} className="p-2 border-b border-[#eee] dark:border-strokedark">
+                          <td colSpan={8} className="p-2 border-b border-[#eee] dark:border-strokedark">
                             <div className="relative">
                               <textarea
                                 onChange={(e) =>

@@ -101,14 +101,22 @@ const DropdownNotification = () => {
               {orders && orders.length > 0 ? (
                 // Filter orders to only include those with items to review
                 orders.filter(notification => {
-                  // Filter items that are either "Received" or "Rejected"
+                  // Filter items that are at key review/production steps
                   const filteredItems = notification.orderItems?.filter(
-                    (item) => item.status === "Edited" || item.status === "Rejected" || item.status === "Completed" || item.status === "Printed"
+                    (item) =>
+                      item.status === "Edited" ||
+                      item.status === "Rejected" ||
+                      item.status === "Completed" ||
+                      item.status === "InProgress"
                   );
                   return filteredItems.length > 0; // Keep orders with items to review
                 }).map((notification) => {
                   const filteredItemsCount = notification.orderItems.filter(
-                    (item) => item.status === "Edited" || item.status === "Rejected" || item.status === "Completed" || item.status === "Printed"
+                    (item) =>
+                      item.status === "Edited" ||
+                      item.status === "Rejected" ||
+                      item.status === "Completed" ||
+                      item.status === "InProgress"
                   ).length;
 
                   return (

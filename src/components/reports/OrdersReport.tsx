@@ -284,13 +284,11 @@ export const OrdersReport = () => {
               className="relative z-20 w-full appearance-none rounded border border-stroke bg-transparent py-2 px-4 outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
             >
               <option value="">All status</option>
-              <option value="Received">Received</option>
-              <option value="Edited">Edited</option>
-              <option value="Approved">Approved</option>
-              <option value="Rejected">Rejected</option>
-              <option value="Printed">Printed</option>
-              <option value="Completed">Completed</option>
+              <option value="Pending">Pending</option>
+              <option value="InProgress">In progress</option>
+              <option value="Ready">Ready</option>
               <option value="Delivered">Delivered</option>
+              <option value="Cancelled">Cancelled</option>
             </select>
             <span className="absolute top-1/2 right-4 z-30 -translate-y-1/2">
               <svg

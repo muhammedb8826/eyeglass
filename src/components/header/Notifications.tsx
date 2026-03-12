@@ -37,6 +37,8 @@ export const Notifications = () => {
   const [readyItems, setReadyItems] = useState<OrderItemType[]>([]);
   const [deliveredItems, setDeliveredItems] = useState<OrderItemType[]>([]);
   const [cancelledItems, setCancelledItems] = useState<OrderItemType[]>([]);
+  const [approvedItems, setApprovedItems] = useState<OrderItemType[]>([]);
+  const [qcItems, setQcItems] = useState<OrderItemType[]>([]);
 
   const [expandedNotes, setExpandedNotes] = useState<boolean[]>([]);
   const [activeTabId, setActiveTabId] = useState<string>('pending');
@@ -104,33 +106,51 @@ export const Notifications = () => {
       if (user?.roles === 'ADMIN') {
         filteredOrderData = orderData;
       } else if (user?.roles === 'LAB_TECHNICIAN') {
-        filteredOrderData = orderData.filter(item =>
-          item.status === "Received" || item.status === "Rejected" || item.status === "Edited"
-        );
+        // Lab technicians see all items; they use approval/QC to decide actions
+        filteredOrderData = orderData;
       } else if (user?.roles === 'OPERATOR') {
         // Operators now see all items for the order, scoped by status tabs below
         filteredOrderData = orderData;
       } else if (user?.roles === 'RECEPTION' || user?.roles === 'DISPENSER') {
+        // Front desk focuses on handoff / delivery and cancellations
         filteredOrderData = orderData.filter(item =>
-          ["Received", "Rejected", "Completed", "Delivered"].includes(item.status || "")
+          ["Pending", "Ready", "Delivered", "Cancelled"].includes(item.status || "")
         );
       } else {
         // Other roles currently see no order items here
         filteredOrderData = [];
       }
       
-      // Map statuses to production flow tabs (support both standard and legacy status values)
-      const isPending = (s: string) => ["Pending", "Received", "Rejected", "Edited"].includes(s);
-      const isInProgress = (s: string) => ["InProgress", "Approved", "Printed"].includes(s);
-      const isReady = (s: string) => ["Ready", "Completed"].includes(s);
+      // Map statuses to production flow tabs (backend standard values only)
+      const isPending = (s: string) => s === "Pending";
+      const isInProgress = (s: string) => s === "InProgress";
+      const isReady = (s: string) => s === "Ready";
       const isDelivered = (s: string) => s === "Delivered";
-      const isCancelled = (s: string) => ["Cancelled", "Void"].includes(s);
+      const isCancelled = (s: string) => s === "Cancelled";
 
-      setPendingItems(filteredOrderData.filter((item) => item.status && isPending(item.status)));
-      setInProgressItems(filteredOrderData.filter((item) => item.status && isInProgress(item.status)));
-      setReadyItems(filteredOrderData.filter((item) => item.status && isReady(item.status)));
-      setDeliveredItems(filteredOrderData.filter((item) => item.status && isDelivered(item.status)));
-      setCancelledItems(filteredOrderData.filter((item) => item.status && isCancelled(item.status)));
+      const pending = filteredOrderData.filter((item) => item.status && isPending(item.status));
+      const inProgress = filteredOrderData.filter((item) => item.status && isInProgress(item.status));
+      const ready = filteredOrderData.filter((item) => item.status && isReady(item.status));
+      const delivered = filteredOrderData.filter((item) => item.status && isDelivered(item.status));
+      const cancelled = filteredOrderData.filter((item) => item.status && isCancelled(item.status));
+
+      setPendingItems(pending);
+      setInProgressItems(inProgress);
+      setReadyItems(ready);
+      setDeliveredItems(delivered);
+      setCancelledItems(cancelled);
+
+      // Approval and quality control groupings
+      // Approved tab shows lines that are approved but still Pending
+      setApprovedItems(
+        filteredOrderData.filter(
+          (item) => item.approvalStatus === "Approved" && item.status === "Pending",
+        ),
+      );
+
+      // Quality control tab shows items that have finished production (Ready),
+      // regardless of current QC status
+      setQcItems(filteredOrderData.filter((item) => item.status === "Ready"));
     }
   }, [id, isSuccess, orderData, assignedMachinesData, user]);
     
@@ -144,16 +164,64 @@ export const Notifications = () => {
     }
 
     try {
-      const orderLists = [pendingItems, inProgressItems, readyItems, deliveredItems, cancelledItems];
+      const orderLists = [
+        pendingItems,
+        inProgressItems,
+        readyItems,
+        deliveredItems,
+        cancelledItems,
+        approvedItems,
+        qcItems,
+      ];
       const list = orderLists.find(list => list.some(item => item.id === id));
       const itemToUpdate = list?.find(item => item.id === id);
 
-      if (itemToUpdate) {
-        await updateOrderItem({ ...itemToUpdate, status }).unwrap();
-        toast.success("Order updated successfully");
+      if (!itemToUpdate) return;
+
+      // Enforce QC pass before delivery
+      if (status === "Delivered" && itemToUpdate.qualityControlStatus !== "Passed") {
+        toast.error("Quality control must be Passed before delivery.");
         handleAction(index);
-        refetch();
+        return;
       }
+
+      const payload: Partial<OrderItemType> & { id: string } = { ...itemToUpdate };
+
+      // Side-effect-only commands (no status change)
+      if (status === "Pending") {
+        // Approve line while keeping it Pending
+        payload.approvalStatus = "Approved";
+      } else if (status === "QC_PASSED" || status === "QC_FAILED") {
+        // Only allow QC on Ready items
+        if (itemToUpdate.status !== "Ready") {
+          toast.error("Quality control applies only to items that are Ready.");
+          handleAction(index);
+          return;
+        }
+
+        if (status === "QC_PASSED") {
+          // QC Passed: mark as passed and move to Delivered
+          payload.qualityControlStatus = "Passed";
+          payload.status = "Delivered";
+        } else {
+          // QC Failed: mark as failed and move to Cancelled
+          payload.qualityControlStatus = "Failed";
+          payload.status = "Cancelled";
+        }
+      } else {
+        // True status changes along the lifecycle
+        if (status === "InProgress" && itemToUpdate.approvalStatus !== "Approved") {
+          toast.error("This line must be approved before starting production.");
+          handleAction(index);
+          return;
+        }
+        payload.status = status;
+      }
+
+      await updateOrderItem(payload).unwrap();
+      toast.success("Order updated successfully");
+      handleAction(index);
+      refetch();
     } catch (error) {
       const fetchError = error as FetchBaseQueryError;
       const errorMessage = handleApiError(fetchError, "Failed to update order item");
@@ -168,6 +236,8 @@ export const Notifications = () => {
     ready: (role: string) => ["OPERATOR", "ADMIN"].includes(role),
     delivered: (role: string) => ["RECEPTION", "DISPENSER", "ADMIN"].includes(role),
     cancelled: (role: string) => role === "ADMIN",
+    approved: (role: string) => role === "ADMIN",
+    qc: (role: string) => role === "ADMIN",
   };
 
   const handleUpdateNote = async (newNote: OrderItemNotes, index: number) => {
@@ -197,8 +267,10 @@ export const Notifications = () => {
   const hasItems = orderData && orderData.length > 0;
   const tabs = [
     { id: 'pending', label: `Pending (${pendingItems.length})` },
+    { id: 'approved', label: `Approved (${approvedItems.length})` },
     { id: 'in-progress', label: `In progress (${inProgressItems.length})` },
     { id: 'ready', label: `Ready (${readyItems.length})` },
+    { id: 'qc', label: `Quality control (${qcItems.length})` },
     { id: 'delivered', label: `Delivered (${deliveredItems.length})` },
     { id: 'cancelled', label: `Cancelled (${cancelledItems.length})` },
   ];
@@ -245,14 +317,15 @@ export const Notifications = () => {
           <NotificationTable
             title="Pending (not yet in production)"
             orders={pendingItems}
+            statusLabel="Pending"
             handleAction={handleAction}
             handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.pending)}
             handleUpdateNote={handleUpdateNote}
             showPopover={showPopover}
             popoverRef={pendingPopoverRef}
             user={user}
-            status1={{ label: "Start production", value: "Printed" }}
-            status2={{ label: "Edit", value: "Edited" }}
+            status1={{ label: "Approve", value: "Pending" }}
+            status2={{ label: "", value: "" }}
             expandedNotes={expandedNotes}
             setExpandedNotes={setExpandedNotes}
           />
@@ -261,14 +334,15 @@ export const Notifications = () => {
           <NotificationTable
             title="In progress (lens in production)"
             orders={inProgressItems}
+            statusLabel="In progress"
             handleAction={handleAction}
             handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.inProgress)}
             handleUpdateNote={handleUpdateNote}
             showPopover={showPopover}
             popoverRef={inProgressPopoverRef}
             user={user}
-            status1={{ label: "Mark ready", value: "Completed" }}
-            status2={{ label: "Cancel", value: "Void" }}
+            status1={{ label: "Mark ready", value: "Ready" }}
+            status2={{ label: "Cancel", value: "Cancelled" }}
             expandedNotes={expandedNotes}
             setExpandedNotes={setExpandedNotes}
           />
@@ -277,13 +351,14 @@ export const Notifications = () => {
           <NotificationTable
             title="Ready (production done)"
             orders={readyItems}
+            statusLabel="Ready"
             handleAction={handleAction}
             handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.ready)}
             handleUpdateNote={handleUpdateNote}
             showPopover={showPopover}
             popoverRef={readyPopoverRef}
             user={user}
-            status1={{ label: "Mark delivered", value: "Delivered" }}
+            status1={{ label: "", value: "" }}
             status2={{ label: "", value: "" }}
             expandedNotes={expandedNotes}
             setExpandedNotes={setExpandedNotes}
@@ -293,6 +368,7 @@ export const Notifications = () => {
           <NotificationTable
             title="Delivered"
             orders={deliveredItems}
+            statusLabel="Delivered"
             handleAction={handleAction}
             handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.delivered)}
             handleUpdateNote={handleUpdateNote}
@@ -309,6 +385,7 @@ export const Notifications = () => {
           <NotificationTable
             title="Cancelled"
             orders={cancelledItems}
+            statusLabel="Cancelled"
             handleAction={handleAction}
             handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.cancelled)}
             handleUpdateNote={handleUpdateNote}
@@ -317,6 +394,40 @@ export const Notifications = () => {
             user={user}
             status1={{ label: "", value: "" }}
             status2={{ label: "", value: "" }}
+            expandedNotes={expandedNotes}
+            setExpandedNotes={setExpandedNotes}
+          />
+        )}
+        {activeTabId === "approved" && (
+          <NotificationTable
+            title="Approved items"
+            orders={approvedItems}
+            statusLabel="Approved"
+            handleAction={handleAction}
+            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.approved)}
+            handleUpdateNote={handleUpdateNote}
+            showPopover={showPopover}
+            popoverRef={deliveredPopoverRef}
+            user={user}
+            status1={{ label: "Start production", value: "InProgress" }}
+            status2={{ label: "", value: "" }}
+            expandedNotes={expandedNotes}
+            setExpandedNotes={setExpandedNotes}
+          />
+        )}
+        {activeTabId === "qc" && (
+          <NotificationTable
+            title="Quality control"
+            orders={qcItems}
+            statusLabel="Quality control"
+            handleAction={handleAction}
+            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.qc)}
+            handleUpdateNote={handleUpdateNote}
+            showPopover={showPopover}
+            popoverRef={deliveredPopoverRef}
+            user={user}
+            status1={{ label: "QC Passed", value: "QC_PASSED" }}
+            status2={{ label: "QC Failed", value: "QC_FAILED" }}
             expandedNotes={expandedNotes}
             setExpandedNotes={setExpandedNotes}
           />

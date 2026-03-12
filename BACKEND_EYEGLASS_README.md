@@ -320,3 +320,60 @@ For each eyeglass `OrderItem` where the check applies:
 
 The formulas and rules in this README are shared between frontend and backend so both sides stay consistent.
 
+---
+
+## 8. Order item lifecycle, approval, and quality control
+
+### 8.1 Status fields on `OrderItem`
+
+In addition to the Rx and lens fields above, each eyeglass `OrderItem` has three operational fields that drive the production flow:
+
+- `status` – manufacturing status for the line.
+- `approvalStatus` – per-line business approval (e.g. pricing/clinical approval).
+- `qualityControlStatus` – per-line QC result (`"Pending"`, `"Passed"`, `"Failed"`).
+
+The **order** status is derived from its items (e.g. all items `InProgress` → order `InProgress`; all `Delivered` → order `Delivered`; mixed → often `Processing`).
+
+### 8.2 Status semantics and stock behavior
+
+The backend recognizes the standard manufacturing lifecycle:
+
+- `Pending` – order received, not yet in production.
+- `InProgress` – lens is in production.
+- `Ready` – production done, waiting for pickup/delivery.
+- `Delivered` – handed to the customer.
+- `Cancelled` – job cancelled.
+
+Stock and bincard behavior:
+
+- When an item’s `status` is moved **into** `InProgress` for a **stock** item, the backend:
+  - Checks that **operator stock** exists for the item and is ≥ the required `unit`.
+  - Reduces operator stock by `unit` and records a **bincard OUT** entry.
+  - If stock is insufficient, the update is rejected with `409 Conflict`.
+- When an item’s `status` is moved **into** `Cancelled`, the backend behaves like `InProgress` from a stock perspective: stock is consumed (the lens was started/finished but the job is cancelled).
+- When an item’s `status` is moved **out of** `Cancelled` back to a non-cancelled value, the backend restores the consumed stock (reverse adjustment).
+
+### 8.3 Approval and quality control rules
+
+#### 8.3.1 Approval
+
+- `approvalStatus` is stored per order item and can be used by the UI and reporting.
+- The core services do not enforce a hard rule on `approvalStatus` (e.g. they do not block `InProgress` based on approval), leaving that to higher-level workflows or controllers.
+
+#### 8.3.2 Quality control
+
+- `qualityControlStatus` tracks QC per line and typically uses:
+  - `"Pending"` – QC not yet performed.
+  - `"Passed"` – QC completed successfully.
+  - `"Failed"` – QC failed; the lens must be remade or inspected.
+- When a client attempts to set `status = "Delivered"` for an order item and that item has `qualityControlStatus = "Failed"`, the backend rejects the update with `409 Conflict`. This guarantees that failed-QC lines cannot be marked as delivered until they are remade and passed QC.
+
+### 8.4 Payment rule on delivery
+
+When an item’s `status` is set to `Delivered`, the backend also enforces a **payment guard** based on the order’s payment term:
+
+- If the order’s payment term has `forcePayment = true` and the order’s `remainingAmount > 0`, the backend rejects the delivery update with `409 Conflict`.
+- This applies at the line level (individual `OrderItem` → `Delivered`), but the logic considers the order’s financial state so you cannot fully deliver unpaid forced-payment jobs.
+
+Together, `status`, `approvalStatus`, and `qualityControlStatus` allow the frontend to implement rich workflows (approval, QC, rework) while the backend enforces stock, QC, and payment invariants at critical transitions (InProgress, Cancelled, Delivered).
+

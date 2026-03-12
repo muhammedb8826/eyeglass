@@ -206,7 +206,7 @@ const OrdersList = () => {
             {order.status}
           </span>
         )}
-        {order.status === "Completed" && (
+        {order.status === "Ready" && (
           <span className="inline-flex rounded-full bg-meta-3 bg-opacity-10 py-1 px-3 text-sm font-medium text-meta-3">
             {order.status}
           </span>
@@ -216,10 +216,10 @@ const OrdersList = () => {
             {order.status}
           </span>
         )}
-        {order.status === "Printed" && (
+        {order.status === "InProgress" && (
           <span className="inline-flex rounded-full text-white py-1 px-3 bg-opacity-10 text-sm font-medium bg-gradient-to-br from-danger to-warning hover:bg-gradient-to-bl focus:ring-4 focus:outline-none focus:ring-pink-200 dark:focus:ring-pink-800">
-          {order.status}
-        </span>
+            {order.status}
+          </span>
         )}
       </td>
       <td className="border-b border-[#eee] p-4 dark:border-strokedark">

@@ -222,7 +222,7 @@ export const OrderDetailsPage = () => {
       unitPrice: 0,
       description: "",
       isDiscounted: false,
-      status: "Received",
+      status: "Pending",
       servicesOptions: [],
       uomsOptions: [],
       orderId: order?.id || "",
@@ -303,7 +303,7 @@ export const OrderDetailsPage = () => {
           ...item,
           // Normalize serviceId to handle both stock and non-stock services
           serviceId: item.serviceId || item.nonStockServiceId || '',
-          status: item.status || "Received",
+          status: item.status || "Pending",
           constant:
             items?.find((i) => i.id === item.itemId)?.unitCategory?.constant ||
             false,
@@ -503,7 +503,7 @@ export const OrderDetailsPage = () => {
         unitPrice: 0,
         description: "",
         isDiscounted: false,
-        status: "Received",
+        status: "Pending",
         servicesOptions: [],
         uomsOptions: [],
         orderId: order?.id || "",
@@ -605,9 +605,7 @@ export const OrderDetailsPage = () => {
 
     // Prevent changes if the item is in an approved state
     if (
-      item.status !== "Edited" &&
-      item.status !== "Received" &&
-      item.status !== "Rejected"
+      item.status !== "Pending"
     ) {
       toast.error("You cannot edit this item because it has been approved");
       return;
@@ -766,9 +764,7 @@ export const OrderDetailsPage = () => {
   const handleUnitChange = (index: number, value: string) => {
     const item = formData[index];
     if (
-      item.status !== "Edited" &&
-      item.status !== "Received" &&
-      item.status !== "Rejected"
+      item.status !== "Pending"
     ) {
       toast.error("You cannot edit this item because it has been approved");
       return;
@@ -831,9 +827,7 @@ export const OrderDetailsPage = () => {
   const handleQuantityChange = (index: number, value: string) => {
     const item = formData[index];
     if (
-      item.status !== "Edited" &&
-      item.status !== "Received" &&
-      item.status !== "Rejected"
+      item.status !== "Pending"
     ) {
       toast.error("You cannot edit this item because it has been approved");
       return;
@@ -1055,9 +1049,7 @@ export const OrderDetailsPage = () => {
   const handleCancel = (index: number) => {
     const item = formData[index];
     if (
-      item.status !== "Edited" &&
-      item.status !== "Received" &&
-      item.status !== "Rejected"
+      item.status !== "Pending"
     ) {
       toast.error("You cannot cancel this item because it has been approved");
       return;
@@ -1312,17 +1304,35 @@ export const OrderDetailsPage = () => {
   const handleUpdateItemStatus = async (index: number, newStatus: string) => {
     const item = formData[index];
     if (!item?.id || !order?.id) return;
+    // Enforce QC pass before delivery
+    if (newStatus === "Delivered" && item.qualityControlStatus !== "Passed") {
+      toast.error("Quality control must be Passed before delivery.");
+      return;
+    }
     setDropdownOpen(false);
     setShowPopover(null);
     try {
-      await updateOrderItem({
+      const payload: Partial<OrderItemType> & { id: string; orderId: string; status: string } = {
         id: item.id,
         orderId: order.id,
         status: newStatus,
-      }).unwrap();
+      };
+
+      // If starting production, implicitly approve the line
+      if (newStatus === "InProgress" && item.approvalStatus !== "Approved") {
+        payload.approvalStatus = "Approved";
+      }
+
+      await updateOrderItem(payload).unwrap();
       setFormData((prev) => {
         const next = [...prev];
-        if (next[index]) next[index] = { ...next[index], status: newStatus };
+        if (next[index]) {
+          next[index] = {
+            ...next[index],
+            status: newStatus,
+            ...(payload.approvalStatus ? { approvalStatus: payload.approvalStatus } : {}),
+          };
+        }
         return next;
       });
       toast.success(`Item status set to ${newStatus}`);
@@ -1883,33 +1893,23 @@ export const OrderDetailsPage = () => {
                                   <td className="px-4 py-2 border border-stroke dark:border-strokedark">
                                     {order && (
                                       <div className="flex items-center justify-center w-full relative">
-                                        {data.status === "Received" && (
+                                        {data.status === "Pending" && (
                                           <span className="bg-primary text-white text-xs font-medium  px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">
-                                            {data.status}
+                                            Pending
                                           </span>
                                         )}
-                                        {data.status === "Edited" && (
-                                          <span className="bg-primary/50 text-white text-xs font-medium px-2.5 py-0.5 rounded">
-                                            {data.status}
+                                        {data.status === "InProgress" && (
+                                          <span className="text-white bg-gradient-to-br from-danger to-warning hover:bg-gradient-to-bl focus:ring-4 focus:outline-none focus:ring-pink-200 dark:focus:ring-pink-800 text-xs font-medium px-2.5 py-0.5 rounded">
+                                            In progress
                                           </span>
                                         )}
-                                        {data.status === "Rejected" && (
+                                        {data.status === "Cancelled" && (
                                           <span className="bg-danger text-white text-xs font-medium px-2.5 py-0.5 rounded dark:danger dark:text-white">
-                                            {data.status}
-                                          </span>
-                                        )}
-                                        {data.status === "Void" && (
-                                          <span className="bg-danger text-white text-xs font-medium px-2.5 py-0.5 rounded dark:danger dark:text-white">
-                                            {data.status}
+                                            Cancelled
                                           </span>
                                         )}
                                         {data.status === "Approved" && (
                                           <span className="bg-success text-white text-xs font-medium px-2.5 py-0.5 rounded dark:bg-success dark:text-white">
-                                            {data.status}
-                                          </span>
-                                        )}
-                                        {data.status === "Printed" && (
-                                          <span className="text-white bg-gradient-to-br from-danger to-warning hover:bg-gradient-to-bl focus:ring-4 focus:outline-none focus:ring-pink-200 dark:focus:ring-pink-800 text-xs font-medium px-2.5 py-0.5 rounded">
                                             {data.status}
                                           </span>
                                         )}
@@ -1923,9 +1923,9 @@ export const OrderDetailsPage = () => {
                                             {data.status}
                                           </span>
                                         )}
-                                        {data.status === "Completed" && (
+                                        {data.status === "Ready" && (
                                           <span className="text-white bg-meta-3 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-meta-3 dark:hover:bg-blue-700 dark:focus:ring-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">
-                                            {data.status}
+                                            Ready
                                           </span>
                                         )}
                                       </div>
@@ -1983,32 +1983,32 @@ export const OrderDetailsPage = () => {
                                               Details
                                             </Link>
                                           </li>
-                                          {!["Printed", "Completed", "Delivered", "Void"].includes(formData[index]?.status || "") && (
+                                          {!["InProgress", "Ready", "Delivered", "Cancelled"].includes(formData[index]?.status || "") && (
                                             <li>
                                               <button
-                                                onClick={() => handleUpdateItemStatus(index, "Printed")}
+                                                onClick={() => handleUpdateItemStatus(index, "InProgress")}
                                                 type="button"
                                                 disabled={isUpdatingItem}
                                                 className="flex items-center gap-3 text-sm font-medium px-3 py-2 rounded-md duration-300 ease-in-out hover:bg-gray-100 dark:hover:bg-meta-4 hover:text-primary lg:text-base w-full text-left disabled:opacity-50"
                                               >
                                                 <FaPrint className="text-lg" />
-                                                Mark as Printed
+                                                Start production
                                               </button>
                                             </li>
                                           )}
-                                          {formData[index]?.status === "Printed" && (
+                                          {formData[index]?.status === "InProgress" && (
                                             <li>
                                               <button
-                                                onClick={() => handleUpdateItemStatus(index, "Completed")}
+                                                onClick={() => handleUpdateItemStatus(index, "Ready")}
                                                 type="button"
                                                 disabled={isUpdatingItem}
                                                 className="flex items-center gap-3 text-sm font-medium px-3 py-2 rounded-md duration-300 ease-in-out hover:bg-gray-100 dark:hover:bg-meta-4 hover:text-primary lg:text-base w-full text-left disabled:opacity-50"
                                               >
-                                                Mark as Completed
+                                                Mark as Ready
                                               </button>
                                             </li>
                                           )}
-                                          {formData[index]?.status === "Completed" && (
+                                          {formData[index]?.status === "Ready" && (
                                             <li>
                                               <button
                                                 onClick={() => handleUpdateItemStatus(index, "Delivered")}
@@ -2020,15 +2020,15 @@ export const OrderDetailsPage = () => {
                                               </button>
                                             </li>
                                           )}
-                                          {!["Void", "Delivered"].includes(formData[index]?.status || "") && (
+                                          {!["Cancelled", "Delivered"].includes(formData[index]?.status || "") && (
                                             <li>
                                               <button
-                                                onClick={() => handleUpdateItemStatus(index, "Void")}
+                                                onClick={() => handleUpdateItemStatus(index, "Cancelled")}
                                                 type="button"
                                                 disabled={isUpdatingItem}
                                                 className="flex items-center gap-3 text-sm font-medium px-3 py-2 rounded-md duration-300 ease-in-out hover:bg-gray-100 dark:hover:bg-meta-4 hover:text-danger lg:text-base w-full text-left disabled:opacity-50"
                                               >
-                                                Mark as Void
+                                                Mark as Cancelled
                                               </button>
                                             </li>
                                           )}

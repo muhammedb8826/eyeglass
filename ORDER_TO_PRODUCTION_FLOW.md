@@ -19,6 +19,16 @@ Order items use this lifecycle:
 | **Delivered** | Handed to customer            | If payment term has `forcePayment` and `remainingAmount > 0`, backend blocks with 409. |
 | **Cancelled** | Job cancelled                 | Same stock reduction as InProgress (stock is consumed). Reverting from Cancelled restores stock. |
 
+Each order item also has:
+
+- `approvalStatus` – per-line business approval (e.g. `"Approved"`).
+- `qualityControlStatus` – per-line QC status (`"Pending"`, `"Passed"`, `"Failed"`).
+
+The backend uses these fields when transitioning to **Delivered**:
+
+- If `qualityControlStatus = "Failed"` for a given line, attempts to set `status = "Delivered"` for that line are rejected (HTTP `409`), forcing the lens to be remade and QC-passed before delivery.
+- If the order’s payment term has `forcePayment = true` and the order has `remainingAmount > 0`, delivery is also blocked with `409`.
+
 **Order status** is derived from its items (e.g. all items InProgress → order InProgress; all Delivered → order Delivered; mixed → often "Processing").
 
 ---

@@ -39,6 +39,10 @@ export interface OrderItemType {
     nonStockService?: ServiceType
     uom?: UoMType
 
+    // Operational workflow fields
+    approvalStatus?: string;
+    qualityControlStatus?: string;
+
     // Eyeglass prescription fields
     sphereRight?: number;
     sphereLeft?: number;

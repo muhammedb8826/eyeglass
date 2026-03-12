@@ -70,7 +70,7 @@ console.log({
   const { operatorStocks, total } = data;
   const totalPages = Math.ceil(total / limit);
 
-  // Filter orders that have status from Printed to Delivered and map with related data
+  // Filter orders that have status from InProgress to Delivered and map with related data
   const printedOrders = orders?.flatMap(order => 
     order.orderItems?.map(orderItem => {
       // Find related data
@@ -88,7 +88,7 @@ console.log({
     }) || []
   ).filter(orderItem => {
     // Filter by status only; item-machine links were removed from the backend
-    const statusMatch = ['Printed', 'Completed', 'Delivered'].includes(orderItem.status);
+    const statusMatch = ['InProgress', 'Ready', 'Delivered'].includes(orderItem.status);
     return statusMatch;
   }) || [];
   
