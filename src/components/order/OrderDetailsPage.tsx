@@ -38,6 +38,7 @@ import { FaPrint } from "react-icons/fa6";
 import { useReactToPrint } from "react-to-print";
 import { handleApiError } from "@/utils/errorHandling";
 import { PaymentTransactions as PaymentTransactionsType } from "@/types/PaymentTransactions";
+import type { BomType } from "@/types/BomType";
 import { useGetLabToolsQuery } from "@/redux/labTools/labToolsApiSlice";
 import type { LabToolType } from "@/types/LabToolType";
 import type { ItemBaseType } from "@/types/ItemBaseType";
@@ -1511,6 +1512,24 @@ export const OrderDetailsPage = () => {
     }
   };
 
+  // Helper to compute effective parent quantity for a line (per-eye or total)
+  const getLineQuantity = (data: {
+    quantity?: string | number;
+    quantityRight?: number;
+    quantityLeft?: number;
+  }): number => {
+    const r = data.quantityRight;
+    const l = data.quantityLeft;
+    const usePerEye =
+      typeof r === "number" &&
+      !Number.isNaN(r) &&
+      typeof l === "number" &&
+      !Number.isNaN(l);
+    if (usePerEye) return r + l;
+    const q = parseFloat(data.quantity?.toString() || "0");
+    return Number.isNaN(q) ? 0 : q;
+  };
+
   const componentRef = useRef(null);
   const handlePrint = useReactToPrint({
     content: () => componentRef.current,
@@ -2409,6 +2428,38 @@ export const OrderDetailsPage = () => {
                                                     )}
                                                   </div>
                                                 </>
+                                              );
+                                            })()
+                                          )}
+                                          {data.item?.bomLines && data.item.bomLines.length > 0 && (
+                                            (() => {
+                                              const qty = getLineQuantity(data);
+                                              if (!qty || qty <= 0) return null;
+
+                                              return (
+                                                <div className="mt-3 rounded border border-dashed border-stroke bg-gray-50 p-2 text-[11px] dark:border-strokedark dark:bg-meta-4/30">
+                                                  <p className="mb-1 font-semibold text-black dark:text-white">
+                                                    Bill of materials for store request
+                                                  </p>
+                                                  <ul className="list-disc pl-4 space-y-0.5 text-bodydark dark:text-bodydark">
+                                                    {data.item.bomLines.map((bom: BomType) => {
+                                                      const componentName =
+                                                        bom.componentItem?.name ||
+                                                        bom.componentItem?.itemCode ||
+                                                        bom.componentItemId;
+                                                      const uomLabel =
+                                                        bom.uom?.abbreviation || bom.uom?.name || "";
+                                                      const required = (bom.quantity ?? 0) * qty;
+                                                      if (!componentName || !required) return null;
+                                                      return (
+                                                        <li key={bom.id}>
+                                                          {required} × {componentName}
+                                                          {uomLabel ? ` (${uomLabel})` : ""}
+                                                        </li>
+                                                      );
+                                                    })}
+                                                  </ul>
+                                                </div>
                                               );
                                             })()
                                           )}

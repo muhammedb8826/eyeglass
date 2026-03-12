@@ -1,6 +1,7 @@
 import { ServiceType } from "./ServiceType";
 import { UoMType } from "./UomType";
 import { ItemBaseType } from "./ItemBaseType";
+import type { BomType } from "./BomType";
 
 export interface ItemType {
     id: string;
@@ -26,4 +27,5 @@ export interface ItemType {
     purchaseUom: UoMType;
     defaultUom: UoMType;
     itemBases?: ItemBaseType[];
+    bomLines?: BomType[];
 }
