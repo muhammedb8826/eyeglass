@@ -119,7 +119,8 @@ export const apiSlice = createApi({
         'NonStockServices',
         'Account',
         'Bincard',
-        'LabTools'
+        'LabTools',
+        'Boms'
     ],
     endpoints: (builder) => ({
         signup: builder.mutation({
