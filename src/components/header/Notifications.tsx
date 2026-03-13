@@ -227,11 +227,7 @@ export const Notifications = () => {
             handleAction(index);
             return;
           }
-          if (itemToUpdate.storeRequestStatus !== "Issued") {
-            toast.error("Store must issue the required items before production can start.");
-            handleAction(index);
-            return;
-          }
+          // Rely on backend 409 to enforce storeRequestStatus === "Issued"
         }
         payload.status = status;
       }
