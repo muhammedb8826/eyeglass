@@ -187,10 +187,21 @@ export const Notifications = () => {
 
       const payload: Partial<OrderItemType> & { id: string } = { ...itemToUpdate };
 
-      // Side-effect-only commands (no status change)
+      // Side-effect-only commands (no direct status change)
       if (status === "Pending") {
         // Approve line while keeping it Pending
         payload.approvalStatus = "Approved";
+      } else if (status === "REQUEST_STORE_ITEMS") {
+        // Lab requests items from store for this line
+        if (itemToUpdate.storeRequestStatus === "Issued") {
+          toast.info("Store has already issued items for this line.");
+          handleAction(index);
+          return;
+        }
+        payload.storeRequestStatus = "Requested";
+        if (user?.id) {
+          payload.operatorId = user.id;
+        }
       } else if (status === "QC_PASSED" || status === "QC_FAILED") {
         // Only allow QC on Ready items
         if (itemToUpdate.status !== "Ready") {
@@ -210,10 +221,17 @@ export const Notifications = () => {
         }
       } else {
         // True status changes along the lifecycle
-        if (status === "InProgress" && itemToUpdate.approvalStatus !== "Approved") {
-          toast.error("This line must be approved before starting production.");
-          handleAction(index);
-          return;
+        if (status === "InProgress") {
+          if (itemToUpdate.approvalStatus !== "Approved") {
+            toast.error("This line must be approved before starting production.");
+            handleAction(index);
+            return;
+          }
+          if (itemToUpdate.storeRequestStatus !== "Issued") {
+            toast.error("Store must issue the required items before production can start.");
+            handleAction(index);
+            return;
+          }
         }
         payload.status = status;
       }
@@ -236,7 +254,7 @@ export const Notifications = () => {
     ready: (role: string) => ["OPERATOR", "ADMIN"].includes(role),
     delivered: (role: string) => ["RECEPTION", "DISPENSER", "ADMIN"].includes(role),
     cancelled: (role: string) => role === "ADMIN",
-    approved: (role: string) => role === "ADMIN",
+    approved: (role: string) => ["LAB_TECHNICIAN", "ADMIN"].includes(role),
     qc: (role: string) => role === "ADMIN",
   };
 
@@ -409,8 +427,8 @@ export const Notifications = () => {
             showPopover={showPopover}
             popoverRef={deliveredPopoverRef}
             user={user}
-            status1={{ label: "Start production", value: "InProgress" }}
-            status2={{ label: "", value: "" }}
+            status1={{ label: "Request items from store", value: "REQUEST_STORE_ITEMS" }}
+            status2={{ label: "Start production", value: "InProgress" }}
             expandedNotes={expandedNotes}
             setExpandedNotes={setExpandedNotes}
           />

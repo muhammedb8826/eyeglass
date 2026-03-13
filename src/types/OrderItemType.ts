@@ -70,4 +70,8 @@ export interface OrderItemType {
 
     itemBaseId?: string;
     itemBase?: ItemBaseType;
+
+    // Store request / issue tracking
+    storeRequestStatus?: "None" | "Requested" | "Issued";
+    operatorId?: string;
 }

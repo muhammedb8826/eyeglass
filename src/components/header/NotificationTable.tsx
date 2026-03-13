@@ -85,6 +85,9 @@ export const NotificationTable = ({
                   Status
                 </th>
                 <th className="py-4 px-4 font-medium text-black dark:text-white">
+                  Store request
+                </th>
+                <th className="py-4 px-4 font-medium text-black dark:text-white">
                   Approval
                 </th>
                 <th className="py-4 px-4 font-medium text-black dark:text-white">
@@ -125,8 +128,21 @@ export const NotificationTable = ({
                         <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                           {data.quantity}
                         </td>
-                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                  <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                           {statusLabel}
+                        </td>
+                        <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
+                              data.storeRequestStatus === "Issued"
+                                ? "bg-success/10 text-success"
+                                : data.storeRequestStatus === "Requested"
+                                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300"
+                                : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                            }`}
+                          >
+                            {data.storeRequestStatus ?? "None"}
+                          </span>
                         </td>
                         <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                           <span

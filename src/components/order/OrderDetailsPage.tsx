@@ -1319,9 +1319,16 @@ export const OrderDetailsPage = () => {
         status: newStatus,
       };
 
-      // If starting production, implicitly approve the line
-      if (newStatus === "InProgress" && item.approvalStatus !== "Approved") {
-        payload.approvalStatus = "Approved";
+      // If starting production, enforce approval and store issue, and implicitly approve if needed
+      if (newStatus === "InProgress") {
+        if (item.approvalStatus !== "Approved") {
+          // Implicitly approve in the payload, to match backend expectations
+          payload.approvalStatus = "Approved";
+        }
+        if (item.storeRequestStatus !== "Issued") {
+          toast.error("Store must issue the required items before production can start.");
+          return;
+        }
       }
 
       await updateOrderItem(payload).unwrap();
