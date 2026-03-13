@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useGetBincardByItemQuery } from "@/redux/bincard/bincardApiSlice";
 import Loader from "@/common/Loader";
 import Pagination from "@/common/Pagination";
@@ -35,6 +35,11 @@ export const BincardTable = ({
   pageSize = 20,
 }: BincardTableProps) => {
   const [page, setPage] = useState(1);
+  
+  // Ensure we always start from page 1 when the item changes
+  useEffect(() => {
+    setPage(1);
+  }, [itemId]);
   const { data, isLoading, isError } = useGetBincardByItemQuery({
     itemId,
     page,
