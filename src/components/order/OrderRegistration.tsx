@@ -678,9 +678,17 @@ export const OrderRegistration = () => {
 
     setFormData((prevFormData) => {
       const updatedFormData = [...prevFormData];
+      const row = updatedFormData[index];
+      const qtyNum = parseFloat(quantity || "0") || 0;
+      const unit = parseFloat(row.unitPrice?.toString() || "0") || 0;
+      const discount = parseFloat(row.discount?.toString() || "0") || 0;
+      const effectiveUnit = unit - discount;
+      const lineTotal = Math.round(qtyNum * effectiveUnit * 100) / 100;
+
       updatedFormData[index] = {
-        ...updatedFormData[index],
+        ...row,
         quantity,
+        totalAmount: lineTotal,
       };
       return updatedFormData;
     });
@@ -702,10 +710,17 @@ export const OrderRegistration = () => {
       const nextLeft = side === 'quantityLeft' ? num : (row.quantityLeft ?? 0);
       const r = typeof nextRight === 'number' ? nextRight : 0;
       const l = typeof nextLeft === 'number' ? nextLeft : 0;
+      const qtyNum = r + l;
+      const unit = parseFloat(row.unitPrice?.toString() || "0") || 0;
+      const discount = parseFloat(row.discount?.toString() || "0") || 0;
+      const effectiveUnit = unit - discount;
+      const lineTotal = Math.round(qtyNum * effectiveUnit * 100) / 100;
+
       updatedFormData[index] = {
         ...row,
         [side]: num,
-        quantity: String(r + l),
+        quantity: String(qtyNum),
+        totalAmount: lineTotal,
       };
       return updatedFormData;
     });
@@ -725,17 +740,6 @@ export const OrderRegistration = () => {
     const next = Math.max(0, num + delta);
     handleQuantityPerEyeChange(index, side, String(next));
   };
-
-  const updatedFormData = useMemo(() => {
-    return formData.map(item => ({
-      ...item,
-      totalAmount: (
-        (parseFloat(item.quantity?.toString() || '0') *
-          parseFloat(item.unitPrice?.toString() || '0'))
-      ).toFixed(2),
-    }));
-  }, [formData]);
-
 
   const handleCancel = (index: number) => {
     const updatedFormData = [...formData];
@@ -810,7 +814,7 @@ export const OrderRegistration = () => {
       // Calculate discount if the checkbox is checked
       if (checked) {
         const unit = updatedData[index].unit;
-        const selectedItem = items?.find((item) => item.id === updatedFormData[index].itemId);
+        const selectedItem = items?.find((item) => item.id === updatedData[index].itemId);
         const discountItem = discounts?.filter((discount) => discount.items.id === selectedItem?.id);
         // Find the appropriate discount data based on the unit's range
 
@@ -1274,7 +1278,7 @@ export const OrderRegistration = () => {
                             </tr>
                           )}
                           {formData &&
-                            updatedFormData.map((data, index) => (
+                            formData.map((data, index) => (
                               <>
                               <tr
                                 key={index}

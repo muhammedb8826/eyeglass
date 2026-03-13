@@ -29,14 +29,15 @@ interface CompanyReportResponse {
 
 export const orderApiSlice = apiSlice.injectEndpoints({
     endpoints: builder => ({
-        getOrders: builder.query<OrderResponse, { page: number; limit: number; search?: string; startDate?: string; endDate?: string; item1?: string; item2?: string; item3?: string }>({
-            query: ({ page, limit, search, startDate, endDate, item1, item2, item3 }) => {
+        getOrders: builder.query<OrderResponse, { page: number; limit: number; search?: string; startDate?: string; endDate?: string; deliveryDate?: string; item1?: string; item2?: string; item3?: string }>({
+            query: ({ page, limit, search, startDate, endDate, deliveryDate, item1, item2, item3 }) => {
 
                 const params: Record<string, string | number> = { page, limit };
 
                 if (search) params.search = search;
                 if (startDate) params.startDate = startDate;
                 if (endDate) params.endDate = endDate;
+                if (deliveryDate) params.deliveryDate = deliveryDate;
                 if (item1) params.item1 = item1;
                 if (item2) params.item2 = item2;
                 if (item3) params.item3 = item3;

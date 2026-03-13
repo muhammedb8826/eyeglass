@@ -31,7 +31,14 @@ const OrdersList = () => {
   const [deliveryDateFilter, setDeliveryDateFilter] = useState('');
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
-  const { data, isLoading, isError, error } = useGetOrdersQuery({ page, limit, search, startDate, endDate });
+  const { data, isLoading, isError, error } = useGetOrdersQuery({
+    page,
+    limit,
+    search,
+    startDate,
+    endDate,
+    deliveryDate: deliveryDateFilter,
+  });
   const [deleteOrder, { isLoading: isDeleting }] = useDeleteOrderMutation();
 
   const [showPopover, setShowPopover] = useState<number | null>(null);
@@ -159,17 +166,7 @@ const OrdersList = () => {
   const { orders, total } = data;
   const totalPages = Math.ceil(total / limit);
 
-  const filteredOrders = deliveryDateFilter
-    ? orders.filter(order =>
-        order.deliveryDate &&
-        new Date(order.deliveryDate).toISOString().split('T')[0] === deliveryDateFilter
-      )
-    : orders;
-
-  console.log(filteredOrders);
-  
-
-  const orderListContent = filteredOrders.map((order, index: number) => (
+  const orderListContent = orders.map((order, index: number) => (
     <tr key={order.id}>
       <td className="border-b border-[#eee] p-4 dark:border-strokedark">
         <h5 className="font-medium text-black dark:text-white">
@@ -302,7 +299,7 @@ const OrdersList = () => {
           </div>
         )}
 
-        <div date-rangepicker className="flex items-center">
+        <div className="flex items-center">
           <div className="relative">
             <label
               htmlFor="startDate"
@@ -398,7 +395,7 @@ const OrdersList = () => {
 
       <div className="rounded-sm border border-stroke border-t-0 bg-white px-5 pt-6 pb-2.5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5 xl:pb-1">
         <div className="max-w-full overflow-x-auto">
-          {filteredOrders && (
+          {orders && (
             <>
               {/* Action Buttons - Fixed outside scroll area */}
               <div className="flex justify-end gap-2 mb-4">
@@ -455,7 +452,7 @@ const OrdersList = () => {
               </div>
             </>
           )}
-          {filteredOrders.length === 0 && (
+          {orders.length === 0 && (
             <div className="flex items-center justify-center w-full">
               <div className="flex flex-col items-center justify-center">
                 <svg
