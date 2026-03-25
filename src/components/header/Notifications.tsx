@@ -128,9 +128,28 @@ export const Notifications = () => {
       const isDelivered = (s: string) => s === "Delivered";
       const isCancelled = (s: string) => s === "Cancelled";
 
-      const pending = filteredOrderData.filter((item) => item.status && isPending(item.status));
-      const inProgress = filteredOrderData.filter((item) => item.status && isInProgress(item.status));
-      const ready = filteredOrderData.filter((item) => item.status && isReady(item.status));
+      // Pending tab should only show items that are not yet approved.
+      // Once a line is approved (approvalStatus === "Approved") and still Pending,
+      // it moves to the Approved tab and should not remain in Pending.
+      const pending = filteredOrderData.filter(
+        (item) =>
+          item.status &&
+          isPending(item.status) &&
+          item.approvalStatus !== "Approved",
+      );
+      const inProgress = filteredOrderData.filter(
+        (item) => item.status && isInProgress(item.status),
+      );
+
+      // Split Ready into two mutually-exclusive tabs:
+      // - Ready tab: items that are Ready AND QC has already been set (Passed/Failed)
+      // - Quality control tab: items that are Ready AND QC is still Pending/empty (needs QC action)
+      const qcPending = (qc: string | undefined) => !qc || qc === "Pending";
+      const qcDone = (qc: string | undefined) => !!qc && qc !== "Pending";
+
+      const ready = filteredOrderData.filter(
+        (item) => item.status && isReady(item.status) && qcDone(item.qualityControlStatus),
+      );
       const delivered = filteredOrderData.filter((item) => item.status && isDelivered(item.status));
       const cancelled = filteredOrderData.filter((item) => item.status && isCancelled(item.status));
 
@@ -144,13 +163,16 @@ export const Notifications = () => {
       // Approved tab shows lines that are approved but still Pending
       setApprovedItems(
         filteredOrderData.filter(
-          (item) => item.approvalStatus === "Approved" && item.status === "Pending",
+          (item) => item.status === "Pending" && item.approvalStatus === "Approved",
         ),
       );
 
-      // Quality control tab shows items that have finished production (Ready),
-      // regardless of current QC status
-      setQcItems(filteredOrderData.filter((item) => item.status === "Ready"));
+      // Quality control tab: Ready items awaiting QC
+      setQcItems(
+        filteredOrderData.filter(
+          (item) => item.status === "Ready" && qcPending(item.qualityControlStatus),
+        ),
+      );
     }
   }, [id, isSuccess, orderData, assignedMachinesData, user]);
     
@@ -210,14 +232,11 @@ export const Notifications = () => {
           return;
         }
 
+        // QC is a separate step from delivery. It only updates QC status.
         if (status === "QC_PASSED") {
-          // QC Passed: mark as passed and move to Delivered
           payload.qualityControlStatus = "Passed";
-          payload.status = "Delivered";
         } else {
-          // QC Failed: mark as failed and move to Cancelled
           payload.qualityControlStatus = "Failed";
-          payload.status = "Cancelled";
         }
       } else {
         // True status changes along the lifecycle
@@ -283,8 +302,8 @@ export const Notifications = () => {
     { id: 'pending', label: `Pending (${pendingItems.length})` },
     { id: 'approved', label: `Approved (${approvedItems.length})` },
     { id: 'in-progress', label: `In progress (${inProgressItems.length})` },
-    { id: 'ready', label: `Ready (${readyItems.length})` },
     { id: 'qc', label: `Quality control (${qcItems.length})` },
+    { id: 'ready', label: `Ready (${readyItems.length})` },
     { id: 'delivered', label: `Delivered (${deliveredItems.length})` },
     { id: 'cancelled', label: `Cancelled (${cancelledItems.length})` },
   ];
@@ -372,7 +391,7 @@ export const Notifications = () => {
             showPopover={showPopover}
             popoverRef={readyPopoverRef}
             user={user}
-            status1={{ label: "", value: "" }}
+            status1={{ label: "Deliver", value: "Delivered" }}
             status2={{ label: "", value: "" }}
             expandedNotes={expandedNotes}
             setExpandedNotes={setExpandedNotes}

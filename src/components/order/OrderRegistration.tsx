@@ -978,6 +978,9 @@ export const OrderRegistration = () => {
         description: data.description,
         isDiscounted: data.isDiscounted,
         status: data.status,
+        approvalStatus: data.approvalStatus,
+        qualityControlStatus: data.qualityControlStatus,
+        storeRequestStatus: data.storeRequestStatus,
         orderId: data.orderId,
         // Eyeglass-specific fields: Rx, PD, lens params, base
         sphereRight: data.sphereRight,
