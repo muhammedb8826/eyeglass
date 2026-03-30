@@ -181,7 +181,7 @@ export const OrderRegistration = () => {
 
   const [orderInfo, setOrderInfo] = useState<OrderType>({
     id: "",
-    series: "IAN-ORD-YYYY-",
+    series: "NDS-ORD-YYYY-",
     customerId: "",
     status: "Pending",
     orderSource: "",
@@ -938,7 +938,7 @@ export const OrderRegistration = () => {
 
     // Get the series number
     const seriesNumber = String(orders?.length).padStart(4, '0'); // Pad with leading zeros if needed
-    orderInfo.series = `IAN-O-${seriesNumber}-${currentYear}`;
+    orderInfo.series = `NDS-O-${seriesNumber}-${currentYear}`;
 
     const ordeItemData = formData.map((data) => {
       // Check if the service is a non-stock service

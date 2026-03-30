@@ -200,7 +200,7 @@ export const StoreRequestRegistration = () => {
     }));
 
     const data = {
-      series: `IAN-SO-${seriesNumber}-${currentYear}`,
+      series: `NDS-SO-${seriesNumber}-${currentYear}`,
       operatorId: user?.id,
       status: "Requested",
       orderDate: new Date(orderDate),

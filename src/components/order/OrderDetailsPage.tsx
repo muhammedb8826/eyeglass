@@ -192,7 +192,7 @@ export const OrderDetailsPage = () => {
 
   const [orderInfo, setOrderInfo] = useState<OrderType>({
     id: "",
-    series: "IAN-ORD-YYYY-",
+    series: "NDS-ORD-YYYY-",
     customerId: "",
     status: "Pending",
     orderSource: "",

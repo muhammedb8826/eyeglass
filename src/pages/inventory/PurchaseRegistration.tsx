@@ -281,7 +281,7 @@ export const PurchaseRegistration = () => {
     }));
 
     const data = {
-      series: `IAN-PO-${seriesNumber}-${currentYear}`,
+      series: `NDS-PO-${seriesNumber}-${currentYear}`,
       vendorId: vendorSearch.id,
       purchaserId: user?.id,
       status: "Purchased",
