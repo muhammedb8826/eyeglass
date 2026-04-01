@@ -27,17 +27,68 @@ interface CompanyReportResponse {
     totals: CompanyReportTotals;
 }
 
+/** Query args for GET /orders — see FRONTEND_GUIDE / integration docs */
+export interface GetOrdersQueryArgs {
+    page: number;
+    limit: number;
+    search?: string;
+    /** Comma-separated statuses, e.g. `Pending,Processing,Ready` */
+    status?: string;
+    /** Which date column startDate/endDate or datePreset apply to */
+    dateField?: 'orderDate' | 'createdAt' | 'deliveryDate';
+    /** Custom range (ISO or YYYY-MM-DD); if either is set, backend prefers this over datePreset */
+    startDate?: string;
+    endDate?: string;
+    /** Preset: today, this_week, this_month, last_week, last_month (hyphens also accepted server-side) */
+    datePreset?: string;
+    sortBy?: 'createdAt' | 'orderDate' | 'deliveryDate' | 'grandTotal';
+    sortOrder?: 'ASC' | 'DESC';
+    customerId?: string;
+    minGrandTotal?: number;
+    maxGrandTotal?: number;
+    item1?: string;
+    item2?: string;
+    item3?: string;
+}
+
 export const orderApiSlice = apiSlice.injectEndpoints({
     endpoints: builder => ({
-        getOrders: builder.query<OrderResponse, { page: number; limit: number; search?: string; startDate?: string; endDate?: string; deliveryDate?: string; item1?: string; item2?: string; item3?: string }>({
-            query: ({ page, limit, search, startDate, endDate, deliveryDate, item1, item2, item3 }) => {
-
+        getOrders: builder.query<OrderResponse, GetOrdersQueryArgs>({
+            query: ({
+                page,
+                limit,
+                search,
+                status,
+                dateField,
+                startDate,
+                endDate,
+                datePreset,
+                sortBy,
+                sortOrder,
+                customerId,
+                minGrandTotal,
+                maxGrandTotal,
+                item1,
+                item2,
+                item3,
+            }) => {
                 const params: Record<string, string | number> = { page, limit };
 
                 if (search) params.search = search;
+                if (status) params.status = status;
+                if (dateField) params.dateField = dateField;
                 if (startDate) params.startDate = startDate;
                 if (endDate) params.endDate = endDate;
-                if (deliveryDate) params.deliveryDate = deliveryDate;
+                if (datePreset) params.datePreset = datePreset;
+                if (sortBy) params.sortBy = sortBy;
+                if (sortOrder) params.sortOrder = sortOrder;
+                if (customerId) params.customerId = customerId;
+                if (minGrandTotal !== undefined && minGrandTotal !== null && !Number.isNaN(minGrandTotal)) {
+                    params.minGrandTotal = minGrandTotal;
+                }
+                if (maxGrandTotal !== undefined && maxGrandTotal !== null && !Number.isNaN(maxGrandTotal)) {
+                    params.maxGrandTotal = maxGrandTotal;
+                }
                 if (item1) params.item1 = item1;
                 if (item2) params.item2 = item2;
                 if (item3) params.item3 = item3;

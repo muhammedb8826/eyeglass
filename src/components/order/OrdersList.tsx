@@ -1,8 +1,8 @@
 import { MdDelete } from "react-icons/md";
-import { IoBagAdd } from "react-icons/io5";
+import { IoBagAdd, IoCloseCircleOutline } from "react-icons/io5";
 import { Link, NavLink } from "react-router-dom";
 import { useSelector } from "react-redux";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ErroPage from "../common/ErroPage";
 
 import { CiMenuKebab } from "react-icons/ci";
@@ -10,7 +10,11 @@ import Swal from "sweetalert2";
 import Loader from "@/common/Loader";
 import Breadcrumb from "../Breadcrumb";
 import { selectCurrentUser } from "@/redux/authSlice";
-import { useDeleteOrderMutation, useGetOrdersQuery } from "@/redux/order/orderApiSlice";
+import {
+  useDeleteOrderMutation,
+  useGetOrdersQuery,
+  type GetOrdersQueryArgs,
+} from "@/redux/order/orderApiSlice";
 import { BsTicketDetailed } from "react-icons/bs";
 import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
 import { toast } from "react-toastify";
@@ -23,22 +27,125 @@ interface ErrorData {
   statusCode?: number;
 }
 
+const DEFAULT_DATE_FIELD: NonNullable<GetOrdersQueryArgs['dateField']> = 'orderDate';
+const DEFAULT_SORT_BY: NonNullable<GetOrdersQueryArgs['sortBy']> = 'createdAt';
+const DEFAULT_SORT_ORDER: NonNullable<GetOrdersQueryArgs['sortOrder']> = 'DESC';
+
+const fieldLabel =
+  'mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400';
+const fieldInput =
+  'w-full rounded-xl border border-stroke/90 bg-white py-2.5 px-3.5 text-sm text-black shadow-sm outline-none transition placeholder:text-gray-400 focus:border-primary focus:ring-2 focus:ring-primary/15 dark:border-strokedark dark:bg-meta-4/40 dark:text-white dark:placeholder:text-gray-500';
+
 const OrdersList = () => {
   const user = useSelector(selectCurrentUser);
   const [search, setSearch] = useState('');
+  const [dateField, setDateField] = useState<GetOrdersQueryArgs['dateField']>(DEFAULT_DATE_FIELD);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [deliveryDateFilter, setDeliveryDateFilter] = useState('');
+  const [datePreset, setDatePreset] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [sortBy, setSortBy] = useState<GetOrdersQueryArgs['sortBy']>(DEFAULT_SORT_BY);
+  const [sortOrder, setSortOrder] = useState<GetOrdersQueryArgs['sortOrder']>(DEFAULT_SORT_ORDER);
+  const [minGrandTotal, setMinGrandTotal] = useState('');
+  const [maxGrandTotal, setMaxGrandTotal] = useState('');
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
-  const { data, isLoading, isError, error } = useGetOrdersQuery({
+
+  const hasCustomRange = Boolean(startDate || endDate);
+
+  const ordersQuery = useMemo((): GetOrdersQueryArgs => {
+    const q: GetOrdersQueryArgs = {
+      page,
+      limit,
+      search: search.trim() || undefined,
+      dateField,
+      sortBy,
+      sortOrder,
+    };
+    if (statusFilter.trim()) q.status = statusFilter.trim();
+    if (hasCustomRange) {
+      if (startDate) q.startDate = startDate;
+      if (endDate) q.endDate = endDate;
+    } else if (datePreset) {
+      q.datePreset = datePreset;
+    }
+    const min = parseFloat(minGrandTotal);
+    if (minGrandTotal.trim() !== '' && !Number.isNaN(min)) q.minGrandTotal = min;
+    const max = parseFloat(maxGrandTotal);
+    if (maxGrandTotal.trim() !== '' && !Number.isNaN(max)) q.maxGrandTotal = max;
+    return q;
+  }, [
     page,
     limit,
     search,
+    dateField,
     startDate,
     endDate,
-    deliveryDate: deliveryDateFilter,
-  });
+    datePreset,
+    hasCustomRange,
+    statusFilter,
+    sortBy,
+    sortOrder,
+    minGrandTotal,
+    maxGrandTotal,
+  ]);
+
+  const { data, isLoading, isError, error } = useGetOrdersQuery(ordersQuery);
+
+  const hasActiveFilters = useMemo(() => {
+    return (
+      search.trim() !== '' ||
+      startDate !== '' ||
+      endDate !== '' ||
+      datePreset !== '' ||
+      statusFilter.trim() !== '' ||
+      minGrandTotal.trim() !== '' ||
+      maxGrandTotal.trim() !== '' ||
+      dateField !== DEFAULT_DATE_FIELD ||
+      sortBy !== DEFAULT_SORT_BY ||
+      sortOrder !== DEFAULT_SORT_ORDER
+    );
+  }, [
+    search,
+    startDate,
+    endDate,
+    datePreset,
+    statusFilter,
+    minGrandTotal,
+    maxGrandTotal,
+    dateField,
+    sortBy,
+    sortOrder,
+  ]);
+
+  const clearFilters = () => {
+    setSearch('');
+    setDateField(DEFAULT_DATE_FIELD);
+    setStartDate('');
+    setEndDate('');
+    setDatePreset('');
+    setStatusFilter('');
+    setSortBy(DEFAULT_SORT_BY);
+    setSortOrder(DEFAULT_SORT_ORDER);
+    setMinGrandTotal('');
+    setMaxGrandTotal('');
+    setPage(1);
+  };
+
+  useEffect(() => {
+    setPage(1);
+  }, [
+    search,
+    dateField,
+    startDate,
+    endDate,
+    datePreset,
+    statusFilter,
+    sortBy,
+    sortOrder,
+    minGrandTotal,
+    maxGrandTotal,
+  ]);
   const [deleteOrder, { isLoading: isDeleting }] = useDeleteOrderMutation();
 
   const [showPopover, setShowPopover] = useState<number | null>(null);
@@ -83,12 +190,23 @@ const OrdersList = () => {
   };
 
   const handleStartDateSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDatePreset('');
     setStartDate(e.target.value);
-  }
+  };
 
   const handleToDateSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDatePreset('');
     setEndDate(e.target.value);
-  }
+  };
+
+  const handleDatePresetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const v = e.target.value;
+    setDatePreset(v);
+    if (v) {
+      setStartDate('');
+      setEndDate('');
+    }
+  };
 
   const handleDeleteOrder = (id: string) => {
     Swal.fire({
@@ -284,116 +402,262 @@ const OrdersList = () => {
     <>
       <Breadcrumb pageName="Orders" />
 
-      <div
-        className={`rounded-sm border border-stroke border-b-0 bg-white dark:bg-boxdark dark:border-strokedark px-4 flex items-center justify-between flex-column flex-wrap md:flex-row space-y-4 md:space-y-0 py-4`}
-      >
-        {(user?.roles === "RECEPTION" || user?.roles === 'ADMIN') && (
-          <div>
+      <div className="mb-6 space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {(user?.roles === "RECEPTION" || user?.roles === "ADMIN") && (
             <NavLink
               to="/dashboard/add-order"
-              className="inline-flex items-center justify-center rounded bg-primary py-2 px-4 text-center font-medium text-white hover:bg-opacity-90"
+              className="inline-flex w-fit items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-center text-sm font-semibold text-white shadow-md shadow-primary/25 transition hover:bg-opacity-95"
             >
-              <IoBagAdd />
-              <span className="ml-2">Add New Order</span>
+              <IoBagAdd className="text-lg" />
+              Add New Order
             </NavLink>
-          </div>
-        )}
-
-        <div className="flex items-center">
-          <div className="relative">
-            <label
-              htmlFor="startDate"
-              className="mb-2 block text-sm font-medium text-black dark:text-white"
-            >
-              Start Date
-            </label>
-            <input
-              name="startDate"
-              id="startDate"
-              type="date"
-              onChange={(e) => handleStartDateSearch(e)}
-              value={startDate}
-              className="custom-input-date custom-input-date-1 w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-              placeholder="Select date start"
-            />
-          </div>
-          <span className="mx-4 text-gray-500 dark:text-gray-400 mt-8">to</span>
-
-          <div className="relative">
-            <label
-              htmlFor="endDate"
-              className="mb-2 block text-sm font-medium text-black dark:text-white"
-            >
-              End Date
-            </label>
-            <input
-              name="endDate"
-              id="endDate"
-              onChange={(e) => handleToDateSearch(e)}
-              value={endDate}
-              type="date"
-              className="custom-input-date custom-input-date-1 w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-              placeholder="Select date end"
-            />
-          </div>
+          )}
         </div>
 
-        <div className="relative ml-4">
-          <label
-            htmlFor="deliveryDateFilter"
-            className="mb-2 block text-sm font-medium text-black dark:text-white"
-          >
-            Delivery Date
-          </label>
-          <input
-            name="deliveryDateFilter"
-            id="deliveryDateFilter"
-            type="date"
-            value={deliveryDateFilter}
-            onChange={e => setDeliveryDateFilter(e.target.value)}
-            className="custom-input-date custom-input-date-1 w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 font-medium outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-            placeholder="Filter by delivery date"
-          />
-        </div>
-
-        <div className="relative">
-          <label
-            htmlFor="table-search"
-            className="mb-2 block text-sm font-medium text-black dark:text-white"
-          >
-            Search
-          </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 rtl:inset-r-0 start-0 flex items-center ps-3 pointer-events-none">
-              <svg
-                className="w-4 h-4 text-gray-500"
-                aria-hidden="true"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"
-                />
-              </svg>
+        <div className="overflow-hidden rounded-2xl border border-stroke/80 bg-gradient-to-b from-white to-gray-50/90 shadow-sm dark:border-strokedark dark:from-boxdark dark:to-meta-4/30">
+          <div className="flex flex-col gap-4 border-b border-stroke/60 bg-white/60 px-5 py-4 backdrop-blur-sm dark:border-strokedark dark:bg-meta-4/20 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-black dark:text-white">
+                Filters
+              </h2>
+              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                Narrow orders by date, status, amount, or search text.
+              </p>
             </div>
-            <input
-              onChange={handleSearchChange}
-              value={search}
-              type="text"
-              id="table-search"
-              className="w-full rounded border-[1.5px] border-stroke bg-transparent py-2 px-4 ps-10 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
-              placeholder="Search for orders"
-            />
+            <button
+              type="button"
+              onClick={clearFilters}
+              disabled={!hasActiveFilters}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-stroke bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-strokedark dark:bg-meta-4/50 dark:text-gray-200 dark:hover:bg-meta-4"
+            >
+              <IoCloseCircleOutline className="text-lg" aria-hidden />
+              Clear filters
+            </button>
+          </div>
+
+          <div className="space-y-8 p-5 sm:p-6">
+            <div>
+              <p className={fieldLabel}>When</p>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
+                <div className="lg:col-span-2">
+                  <label htmlFor="dateField" className={fieldLabel}>
+                    Date column
+                  </label>
+                  <select
+                    id="dateField"
+                    name="dateField"
+                    value={dateField}
+                    onChange={(e) =>
+                      setDateField(
+                        e.target.value as GetOrdersQueryArgs["dateField"],
+                      )
+                    }
+                    className={fieldInput}
+                  >
+                    <option value="orderDate">Order date</option>
+                    <option value="createdAt">Created at</option>
+                    <option value="deliveryDate">Delivery date</option>
+                  </select>
+                </div>
+                <div className="lg:col-span-3">
+                  <label htmlFor="startDate" className={fieldLabel}>
+                    From
+                  </label>
+                  <input
+                    name="startDate"
+                    id="startDate"
+                    type="date"
+                    onChange={handleStartDateSearch}
+                    value={startDate}
+                    className={`${fieldInput} custom-input-date custom-input-date-1`}
+                  />
+                </div>
+                <div className="flex items-end justify-center pb-2 text-sm font-medium text-gray-400 dark:text-gray-500 lg:col-span-1">
+                  to
+                </div>
+                <div className="lg:col-span-3">
+                  <label htmlFor="endDate" className={fieldLabel}>
+                    To
+                  </label>
+                  <input
+                    name="endDate"
+                    id="endDate"
+                    type="date"
+                    onChange={handleToDateSearch}
+                    value={endDate}
+                    className={`${fieldInput} custom-input-date custom-input-date-1`}
+                  />
+                </div>
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <label htmlFor="datePreset" className={fieldLabel}>
+                    Quick range
+                  </label>
+                  <select
+                    id="datePreset"
+                    name="datePreset"
+                    value={datePreset}
+                    onChange={handleDatePresetChange}
+                    disabled={hasCustomRange}
+                    title={
+                      hasCustomRange
+                        ? "Clear custom dates to use a preset"
+                        : undefined
+                    }
+                    className={`${fieldInput} disabled:cursor-not-allowed disabled:opacity-50`}
+                  >
+                    <option value="">None</option>
+                    <option value="today">Today</option>
+                    <option value="this_week">This week</option>
+                    <option value="this_month">This month</option>
+                    <option value="last_week">Last week</option>
+                    <option value="last_month">Last month</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-8 lg:grid-cols-2">
+              <div>
+                <p className={fieldLabel}>Status &amp; sort</p>
+                <div className="mt-3 grid gap-4 sm:grid-cols-3">
+                  <div className="sm:col-span-1">
+                    <label htmlFor="orderStatusFilter" className={fieldLabel}>
+                      Status
+                    </label>
+                    <select
+                      id="orderStatusFilter"
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className={fieldInput}
+                    >
+                      <option value="">All</option>
+                      <option value="Pending">Pending</option>
+                      <option value="Processing">Processing</option>
+                      <option value="InProgress">In progress</option>
+                      <option value="Ready">Ready</option>
+                      <option value="Delivered">Delivered</option>
+                      <option value="Cancelled">Cancelled</option>
+                      <option value="Pending,Processing">
+                        Pending + Processing
+                      </option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="sortBy" className={fieldLabel}>
+                      Sort by
+                    </label>
+                    <select
+                      id="sortBy"
+                      value={sortBy}
+                      onChange={(e) =>
+                        setSortBy(
+                          e.target.value as GetOrdersQueryArgs["sortBy"],
+                        )
+                      }
+                      className={fieldInput}
+                    >
+                      <option value="createdAt">Created at</option>
+                      <option value="orderDate">Order date</option>
+                      <option value="deliveryDate">Delivery date</option>
+                      <option value="grandTotal">Grand total</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="sortOrder" className={fieldLabel}>
+                      Order
+                    </label>
+                    <select
+                      id="sortOrder"
+                      value={sortOrder}
+                      onChange={(e) =>
+                        setSortOrder(
+                          e.target.value as GetOrdersQueryArgs["sortOrder"],
+                        )
+                      }
+                      className={fieldInput}
+                    >
+                      <option value="DESC">Newest first</option>
+                      <option value="ASC">Oldest first</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <p className={fieldLabel}>Grand total range</p>
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="minGrandTotal" className={fieldLabel}>
+                      Minimum
+                    </label>
+                    <input
+                      id="minGrandTotal"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={minGrandTotal}
+                      onChange={(e) => setMinGrandTotal(e.target.value)}
+                      className={fieldInput}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="maxGrandTotal" className={fieldLabel}>
+                      Maximum
+                    </label>
+                    <input
+                      id="maxGrandTotal"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={maxGrandTotal}
+                      onChange={(e) => setMaxGrandTotal(e.target.value)}
+                      className={fieldInput}
+                      placeholder="No limit"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="table-search" className={fieldLabel}>
+                Search
+              </label>
+              <div className="relative mt-1.5">
+                <div className="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3.5">
+                  <svg
+                    className="h-4 w-4 text-gray-400"
+                    aria-hidden="true"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"
+                    />
+                  </svg>
+                </div>
+                <input
+                  onChange={handleSearchChange}
+                  value={search}
+                  type="text"
+                  id="table-search"
+                  className={`${fieldInput} ps-10`}
+                  placeholder="Series, customer, notes, references…"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="rounded-sm border border-stroke border-t-0 bg-white px-5 pt-6 pb-2.5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5 xl:pb-1">
+      <div className="rounded-2xl border border-stroke bg-white px-5 pt-6 pb-2.5 shadow-sm dark:border-strokedark dark:bg-boxdark sm:px-7.5 xl:pb-1">
         <div className="max-w-full overflow-x-auto">
           {orders && (
             <>
