@@ -37,6 +37,9 @@ import { useGetAllDiscountsQuery } from "@/redux/discount/discountApiSlice";
 import { FaPrint } from "react-icons/fa6";
 import { useReactToPrint } from "react-to-print";
 import { handleApiError } from "@/utils/errorHandling";
+import { DeliveryNotePrint } from "./DeliveryNotePrint";
+import { QcFailureModal } from "./QcFailureModal";
+import { useCreateOrderItemNoteMutation } from "@/redux/order/orderItemNotesApiSlice";
 import { PaymentTransactions as PaymentTransactionsType } from "@/types/PaymentTransactions";
 import type { BomType } from "@/types/BomType";
 import { useGetLabToolsQuery } from "@/redux/labTools/labToolsApiSlice";
@@ -189,6 +192,7 @@ export const OrderDetailsPage = () => {
 
   const [updateOrder, { isLoading: isUpdating }] = useUpdateOrderMutation();
   const [updateOrderItem, { isLoading: isUpdatingItem }] = useUpdateOrderItemMutation();
+  const [createOrderItemNote] = useCreateOrderItemNoteMutation();
 
   const [orderInfo, setOrderInfo] = useState<OrderType>({
     id: "",
@@ -254,6 +258,15 @@ export const OrderDetailsPage = () => {
     fullName: "",
   });
 
+  const deliveryNoteCustomer = useMemo(() => {
+    if (!orderInfo.customerId) return order?.customer ?? null;
+    return (
+      customers?.find((c) => c.id === orderInfo.customerId) ??
+      order?.customer ??
+      null
+    );
+  }, [customers, order?.customer, orderInfo.customerId]);
+
   const [salesPartnerSearch, setSalesPartnerSearch] = useState({
     id: "",
     fullName: "",
@@ -295,7 +308,7 @@ export const OrderDetailsPage = () => {
         optometristName: order.optometristName ?? "",
         urgency: order.urgency ?? "",
         totalAmount: order.totalAmount,
-        tax: order.tax,
+        tax: 0,
         grandTotal: order.grandTotal,
         totalQuantity: order.totalQuantity,
         internalNote: order.internalNote,
@@ -1089,23 +1102,21 @@ export const OrderDetailsPage = () => {
       return acc + parseFloat(c.quantity?.toString() || "0");
     }, 0);
 
-    const tax = totalAmount * 0.15;
-    const grandTotal = totalAmount + tax;
-    let grandTotalWithDiscount = grandTotal;
-
+    // No separate tax/VAT: backend recalculates totals from line items.
+    let grandTotal = totalAmount;
     if (
       parseFloat(userInputDiscount) > 0 &&
       parseFloat(userInputDiscount) <= grandTotal
     ) {
-      grandTotalWithDiscount = grandTotal - parseFloat(userInputDiscount);
+      grandTotal = grandTotal - parseFloat(userInputDiscount);
     }
 
     setOrderInfo((prevOrderInfo) => ({
       ...prevOrderInfo,
       totalAmount: parseFloat(totalAmount.toFixed(2)),
       totalQuantity: parseFloat(totalQuantity.toFixed(2)),
-      tax: parseFloat(tax.toFixed(2)),
-      grandTotal: parseFloat(grandTotalWithDiscount.toFixed(2)),
+      tax: 0,
+      grandTotal: parseFloat(grandTotal.toFixed(2)),
     }));
 
     if (commissionTransactions.length > 0) {
@@ -1218,6 +1229,8 @@ export const OrderDetailsPage = () => {
   }, [items, formData]);
 
   const [showPopover, setShowPopover] = useState<number | null>(null);
+  const [qcFailLineIndex, setQcFailLineIndex] = useState<number | null>(null);
+  const [qcFailSubmitting, setQcFailSubmitting] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, isAbove: false });
   const triggerRefs = useRef<(HTMLAnchorElement | null)[]>([]);
@@ -1345,6 +1358,114 @@ export const OrderDetailsPage = () => {
       const fetchError = err as FetchBaseQueryError;
       const message = handleApiError(fetchError, "Failed to update item status");
       toast.error(message);
+    }
+  };
+
+  const canPerformQc = ["ADMIN", "LAB_TECHNICIAN"].includes(user?.roles || "");
+
+  const handleQcPassLine = async (index: number) => {
+    const item = formData[index];
+    if (!item?.id || !order?.id) return;
+    if (item.status !== "Ready") {
+      toast.error("Only Ready lines can be quality checked.");
+      return;
+    }
+    setDropdownOpen(false);
+    setShowPopover(null);
+    try {
+      await updateOrderItem({
+        id: item.id,
+        orderId: order.id,
+        qualityControlStatus: "Passed",
+      }).unwrap();
+      setFormData((prev) => {
+        const next = [...prev];
+        if (next[index]) {
+          next[index] = { ...next[index], qualityControlStatus: "Passed" };
+        }
+        return next;
+      });
+      toast.success("QC marked as Passed.");
+    } catch (err) {
+      const fetchError = err as FetchBaseQueryError;
+      toast.error(handleApiError(fetchError, "Failed to update QC"));
+    }
+  };
+
+  const handleOrderDetailsQcFailConfirm = async (
+    reason: string,
+    requestStoreWithOperator: boolean,
+  ) => {
+    const lineIndex = qcFailLineIndex;
+    if (lineIndex === null || !user?.id || !order?.id) return;
+    if (!canPerformQc) {
+      toast.error("You are not authorized to perform QC.");
+      return;
+    }
+    const item = formData[lineIndex];
+    if (!item?.id) {
+      setQcFailLineIndex(null);
+      return;
+    }
+    if (item.status !== "Ready") {
+      toast.error("Only Ready lines can be quality checked.");
+      setQcFailLineIndex(null);
+      return;
+    }
+    if (item.qualityControlStatus === "Failed") {
+      toast.error("This line is already marked QC Failed.");
+      setQcFailLineIndex(null);
+      return;
+    }
+
+    setQcFailSubmitting(true);
+    try {
+      await createOrderItemNote({
+        orderItemId: item.id,
+        text: `[QC Failed] ${reason}`,
+        userId: user.id,
+      }).unwrap();
+
+      const payload: Partial<OrderItemType> & {
+        id: string;
+        orderId: string;
+        qualityControlStatus: string;
+      } = {
+        id: item.id,
+        orderId: order.id,
+        qualityControlStatus: "Failed",
+      };
+      if (requestStoreWithOperator && user.id) {
+        payload.operatorId = user.id;
+      }
+
+      await updateOrderItem(payload).unwrap();
+      toast.success(
+        requestStoreWithOperator
+          ? "QC failure recorded; line reset for remake with store request."
+          : "QC failure recorded; line reset for remake (request store separately if needed).",
+      );
+      setQcFailLineIndex(null);
+      setDropdownOpen(false);
+      setShowPopover(null);
+      setFormData((prev) => {
+        const next = [...prev];
+        if (next[lineIndex]) {
+          next[lineIndex] = {
+            ...next[lineIndex],
+            status: "Pending",
+            approvalStatus: "Approved",
+            qualityControlStatus: "Pending",
+            storeRequestStatus: requestStoreWithOperator ? "Requested" : "None",
+          };
+        }
+        return next;
+      });
+    } catch (err) {
+      const fetchError = err as FetchBaseQueryError;
+      toast.error(handleApiError(fetchError, "Failed to record QC failure"));
+    } finally {
+      setQcFailSubmitting(false);
     }
   };
 
@@ -1545,6 +1666,14 @@ export const OrderDetailsPage = () => {
     removeAfterPrint: true,
   });
 
+  const deliveryNoteRef = useRef<HTMLDivElement>(null);
+  const handlePrintDeliveryNote = useReactToPrint({
+    content: () => deliveryNoteRef.current,
+    documentTitle: `Delivery note — ${orderInfo.series || "order"}`,
+    onAfterPrint: () => toast.success("Delivery note sent to print"),
+    removeAfterPrint: false,
+  });
+
   // Print-specific table component
   const PrintTable = () => (
     <div className="print-only">
@@ -1619,8 +1748,42 @@ export const OrderDetailsPage = () => {
 
   return (
     <>
+      <QcFailureModal
+        open={qcFailLineIndex !== null}
+        onClose={() => !qcFailSubmitting && setQcFailLineIndex(null)}
+        onConfirm={handleOrderDetailsQcFailConfirm}
+        isSubmitting={qcFailSubmitting}
+      />
+      <div
+        className="fixed -left-[9999px] top-0 z-0 pointer-events-none"
+        aria-hidden
+      >
+        <DeliveryNotePrint
+          ref={deliveryNoteRef}
+          orderInfo={orderInfo}
+          customer={deliveryNoteCustomer}
+          lines={formData}
+          items={items}
+          services={services}
+          nonStockServices={nonStockServices}
+          discountAmount={parseFloat(userInputDiscount) || 0}
+          paymentTransactions={paymentTransactions}
+          totalPaid={totaTransaction}
+          remainingBalance={remainingAmount}
+          salesPartnerName={salesPartnerSearch.fullName}
+          totalCommission={totalCommission}
+        />
+      </div>
       <Breadcrumb pageName="Order details" />
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end gap-2 mb-4 flex-wrap">
+        <button
+          type="button"
+          className="flex items-center justify-center rounded border-[1.5px] border-stroke bg-white px-2 py-1 font-medium text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600 hover:text-primary dark:hover:text-primary transition-colors"
+          onClick={handlePrintDeliveryNote}
+        >
+          <FaPrint className="mr-2 text-xl text-primary" />
+          Print delivery note
+        </button>
         <button
           type="button"
           className="flex items-center justify-center rounded border-[1.5px] border-stroke bg-white px-2 py-1 font-medium text-black dark:text-white hover:bg-gray-100 dark:hover:bg-gray-600 hover:text-primary dark:hover:text-primary transition-colors"
@@ -2034,12 +2197,48 @@ export const OrderDetailsPage = () => {
                                               </button>
                                             </li>
                                           )}
+                                          {formData[index]?.status === "Ready" && canPerformQc && (
+                                            <>
+                                              <li>
+                                                <button
+                                                  onClick={() => handleQcPassLine(index)}
+                                                  type="button"
+                                                  disabled={isUpdatingItem}
+                                                  className="flex items-center gap-3 text-sm font-medium px-3 py-2 rounded-md duration-300 ease-in-out hover:bg-gray-100 dark:hover:bg-meta-4 hover:text-primary lg:text-base w-full text-left disabled:opacity-50"
+                                                >
+                                                  QC Passed
+                                                </button>
+                                              </li>
+                                              <li>
+                                                <button
+                                                  onClick={() => {
+                                                    setDropdownOpen(false);
+                                                    setShowPopover(null);
+                                                    setQcFailLineIndex(index);
+                                                  }}
+                                                  type="button"
+                                                  disabled={isUpdatingItem}
+                                                  className="flex items-center gap-3 text-sm font-medium px-3 py-2 rounded-md duration-300 ease-in-out hover:bg-gray-100 dark:hover:bg-meta-4 hover:text-danger lg:text-base w-full text-left disabled:opacity-50"
+                                                >
+                                                  QC Failed (remake)…
+                                                </button>
+                                              </li>
+                                            </>
+                                          )}
                                           {formData[index]?.status === "Ready" && (
                                             <li>
                                               <button
                                                 onClick={() => handleUpdateItemStatus(index, "Delivered")}
                                                 type="button"
-                                                disabled={isUpdatingItem}
+                                                disabled={
+                                                  isUpdatingItem ||
+                                                  formData[index]?.qualityControlStatus !== "Passed"
+                                                }
+                                                title={
+                                                  formData[index]?.qualityControlStatus !== "Passed"
+                                                    ? "QC must be Passed before delivery."
+                                                    : undefined
+                                                }
                                                 className="flex items-center gap-3 text-sm font-medium px-3 py-2 rounded-md duration-300 ease-in-out hover:bg-gray-100 dark:hover:bg-meta-4 hover:text-primary lg:text-base w-full text-left disabled:opacity-50"
                                               >
                                                 Mark as Delivered
@@ -3083,14 +3282,6 @@ export const OrderDetailsPage = () => {
                     </span>
                     <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
                       {orderInfo.totalAmount.toLocaleString()}
-                    </span>
-                  </p>
-                  <p className="flex gap-4 justify-between">
-                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                      Tax(15%)
-                    </span>
-                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                      {orderInfo.tax.toLocaleString()}
                     </span>
                   </p>
                   <p className="flex gap-4 justify-between">

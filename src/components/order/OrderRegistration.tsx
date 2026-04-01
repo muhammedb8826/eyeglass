@@ -768,20 +768,18 @@ export const OrderRegistration = () => {
       return acc + (parseFloat(c.quantity?.toString() || '0'));
     }, 0);
 
-    const tax = totalAmount * 0.15;
-    const grandTotal = totalAmount + tax;
-    let grandTotalWithDiscount = grandTotal;
-
+    // No separate tax/VAT: backend recalculates totalAmount and grandTotal from lines.
+    let grandTotal = totalAmount;
     if (parseFloat(userInputDiscount) > 0 && parseFloat(userInputDiscount) <= grandTotal) {
-      grandTotalWithDiscount = grandTotal - parseFloat(userInputDiscount);
+      grandTotal = grandTotal - parseFloat(userInputDiscount);
     }
 
     setOrderInfo((prevOrderInfo) => ({
       ...prevOrderInfo,
       totalAmount: parseFloat(totalAmount.toFixed(2)),
       totalQuantity: parseFloat(totalQuantity.toFixed(2)),
-      tax: parseFloat(tax.toFixed(2)),
-      grandTotal: parseFloat(grandTotalWithDiscount.toFixed(2)),
+      tax: 0,
+      grandTotal: parseFloat(grandTotal.toFixed(2)),
     }));
 
     if (commissionTransactions.length > 0) {
@@ -2389,14 +2387,6 @@ export const OrderRegistration = () => {
                     </span>
                     <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
                       {orderInfo.totalAmount.toLocaleString()}
-                    </span>
-                  </p>
-                  <p className="flex gap-4 justify-between">
-                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                      Tax(15%)
-                    </span>
-                    <span className="block mb-2 text-sm font-medium text-gray-900 dark:text-white">
-                      {orderInfo.tax.toLocaleString()}
                     </span>
                   </p>
                   <p className="flex gap-4 justify-between">

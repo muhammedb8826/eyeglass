@@ -104,7 +104,7 @@ export const NotificationTable = ({
             <tbody>
               {orders?.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="text-center py-6 text-body dark:text-bodydark">
+                  <td colSpan={9} className="text-center py-6 text-body dark:text-bodydark">
                     No items in this list
                   </td>
                 </tr>
@@ -240,7 +240,7 @@ export const NotificationTable = ({
                       </tr>
                       {expandedNotes[index] && (
                         <tr>
-                          <td colSpan={8} className="p-2 border-b border-[#eee] dark:border-strokedark">
+                          <td colSpan={9} className="p-2 border-b border-[#eee] dark:border-strokedark">
                             <div className="relative">
                               <textarea
                                 onChange={(e) =>

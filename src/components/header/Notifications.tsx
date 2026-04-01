@@ -15,6 +15,7 @@ import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
 import { OrderItemType } from "@/types/OrderItemType";
 import Tabs from "@/common/TabComponent";
 import { handleApiError } from "@/utils/errorHandling";
+import { QcFailureModal } from "../order/QcFailureModal";
 
 
 export const Notifications = () => {
@@ -49,6 +50,8 @@ export const Notifications = () => {
 
   const [showPopover, setShowPopover] = useState<number | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [qcFailOrderItemId, setQcFailOrderItemId] = useState<string | null>(null);
+  const [qcFailSubmitting, setQcFailSubmitting] = useState(false);
 
   const pendingPopoverRef = useRef<HTMLDivElement>(null);
   const inProgressPopoverRef = useRef<HTMLDivElement>(null);
@@ -179,7 +182,7 @@ export const Notifications = () => {
 
   const handleAction = (index: number) => setShowPopover(prevIndex => (prevIndex === index ? null : index));
 
-  const handleUpdateOrderItem = async (id: string, status: string, index: number, roleCheck: (roles: string) => boolean) => {
+  const handleUpdateOrderItem = async (orderItemId: string, status: string, index: number, roleCheck: (roles: string) => boolean) => {
     if (!user?.roles || !roleCheck(user?.roles)) {
       toast.error("You are not authorized to edit this order");
       return;
@@ -195,10 +198,12 @@ export const Notifications = () => {
         approvedItems,
         qcItems,
       ];
-      const list = orderLists.find(list => list.some(item => item.id === id));
-      const itemToUpdate = list?.find(item => item.id === id);
+      const list = orderLists.find(list => list.some(item => item.id === orderItemId));
+      const itemToUpdate = list?.find(item => item.id === orderItemId);
 
       if (!itemToUpdate) return;
+
+      const orderIdResolved = itemToUpdate.orderId || id || "";
 
       // Enforce QC pass before delivery
       if (status === "Delivered" && itemToUpdate.qualityControlStatus !== "Passed") {
@@ -207,48 +212,45 @@ export const Notifications = () => {
         return;
       }
 
-      const payload: Partial<OrderItemType> & { id: string } = { ...itemToUpdate };
+      type ItemPatch = Partial<OrderItemType> & { id: string; orderId: string };
+      const base: { id: string; orderId: string } = {
+        id: itemToUpdate.id,
+        orderId: orderIdResolved,
+      };
 
-      // Side-effect-only commands (no direct status change)
+      let payload: ItemPatch;
+
       if (status === "Pending") {
-        // Approve line while keeping it Pending
-        payload.approvalStatus = "Approved";
+        payload = { ...base, approvalStatus: "Approved" };
       } else if (status === "REQUEST_STORE_ITEMS") {
-        // Lab requests items from store for this line
         if (itemToUpdate.storeRequestStatus === "Issued") {
           toast.info("Store has already issued items for this line.");
           handleAction(index);
           return;
         }
-        payload.storeRequestStatus = "Requested";
+        payload = { ...base, storeRequestStatus: "Requested" };
         if (user?.id) {
           payload.operatorId = user.id;
         }
-      } else if (status === "QC_PASSED" || status === "QC_FAILED") {
-        // Only allow QC on Ready items
+      } else if (status === "QC_PASSED") {
         if (itemToUpdate.status !== "Ready") {
           toast.error("Quality control applies only to items that are Ready.");
           handleAction(index);
           return;
         }
-
-        // QC is a separate step from delivery. It only updates QC status.
-        if (status === "QC_PASSED") {
-          payload.qualityControlStatus = "Passed";
-        } else {
-          payload.qualityControlStatus = "Failed";
-        }
+        payload = { ...base, qualityControlStatus: "Passed" };
+      } else if (status === "QC_FAILED") {
+        // Open modal from tab handler instead
+        return;
       } else {
-        // True status changes along the lifecycle
         if (status === "InProgress") {
           if (itemToUpdate.approvalStatus !== "Approved") {
             toast.error("This line must be approved before starting production.");
             handleAction(index);
             return;
           }
-          // Rely on backend 409 to enforce storeRequestStatus === "Issued"
         }
-        payload.status = status;
+        payload = { ...base, status };
       }
 
       await updateOrderItem(payload).unwrap();
@@ -270,7 +272,69 @@ export const Notifications = () => {
     delivered: (role: string) => ["RECEPTION", "DISPENSER", "ADMIN"].includes(role),
     cancelled: (role: string) => role === "ADMIN",
     approved: (role: string) => ["LAB_TECHNICIAN", "ADMIN"].includes(role),
-    qc: (role: string) => role === "ADMIN",
+    qc: (role: string) => ["ADMIN", "LAB_TECHNICIAN"].includes(role),
+  };
+
+  const handleQcFailConfirm = async (reason: string, requestStoreWithOperator: boolean) => {
+    if (!user?.roles || !roleCheckers.qc(user.roles) || !qcFailOrderItemId || !user?.id) {
+      toast.error("You are not authorized or session is incomplete.");
+      return;
+    }
+
+    const item = qcItems.find((i) => i.id === qcFailOrderItemId);
+    if (!item) {
+      toast.error("Line not found.");
+      setQcFailOrderItemId(null);
+      return;
+    }
+    if (item.status !== "Ready") {
+      toast.error("Quality control applies only to items that are Ready.");
+      setQcFailOrderItemId(null);
+      return;
+    }
+    if (item.qualityControlStatus === "Failed") {
+      toast.error("This line is already marked QC Failed.");
+      setQcFailOrderItemId(null);
+      return;
+    }
+
+    const orderIdResolved = item.orderId || id || "";
+    setQcFailSubmitting(true);
+    try {
+      await createOrderItemNote({
+        orderItemId: item.id,
+        text: `[QC Failed] ${reason}`,
+        userId: user.id,
+      }).unwrap();
+
+      const payload: Partial<OrderItemType> & {
+        id: string;
+        orderId: string;
+        qualityControlStatus: string;
+      } = {
+        id: item.id,
+        orderId: orderIdResolved,
+        qualityControlStatus: "Failed",
+      };
+      if (requestStoreWithOperator && user.id) {
+        payload.operatorId = user.id;
+      }
+
+      await updateOrderItem(payload).unwrap();
+      toast.success(
+        requestStoreWithOperator
+          ? "QC failure recorded; line reset for remake with store request."
+          : "QC failure recorded; line reset for remake (request store separately if needed).",
+      );
+      setQcFailOrderItemId(null);
+      setShowPopover(null);
+      refetch();
+    } catch (error) {
+      const fetchError = error as FetchBaseQueryError;
+      toast.error(handleApiError(fetchError, "Failed to record QC failure"));
+    } finally {
+      setQcFailSubmitting(false);
+    }
   };
 
   const handleUpdateNote = async (newNote: OrderItemNotes, index: number) => {
@@ -310,6 +374,12 @@ export const Notifications = () => {
 
   return (
     <>
+      <QcFailureModal
+        open={Boolean(qcFailOrderItemId)}
+        onClose={() => !qcFailSubmitting && setQcFailOrderItemId(null)}
+        onConfirm={handleQcFailConfirm}
+        isSubmitting={qcFailSubmitting}
+      />
       <Breadcrumb pageName="Order notifications" />
       {order && (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-sm border border-stroke bg-white px-4 py-3 shadow-default dark:border-strokedark dark:bg-boxdark">
@@ -454,7 +524,14 @@ export const Notifications = () => {
             orders={qcItems}
             statusLabel="Quality control"
             handleAction={handleAction}
-            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.qc)}
+            handleModalOpen={(orderItemId, status, index) => {
+              if (status === "QC_FAILED") {
+                setShowPopover(null);
+                setQcFailOrderItemId(orderItemId);
+                return;
+              }
+              handleUpdateOrderItem(orderItemId, status, index, roleCheckers.qc);
+            }}
             handleUpdateNote={handleUpdateNote}
             showPopover={showPopover}
             popoverRef={deliveredPopoverRef}
