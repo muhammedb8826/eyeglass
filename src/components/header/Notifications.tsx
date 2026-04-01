@@ -102,8 +102,56 @@ export const Notifications = () => {
 
   useEffect(() => {
     if (isSuccess && orderData && assignedMachinesData) {
+      const normalizedOrderData: OrderItemType[] = orderData.map((item) => {
+        const itemAny = item as OrderItemType & {
+          sales?: number;
+          pricing?: { sellingPrice?: number };
+        };
+        const qty = Number(item.quantity || 0);
+        const unitPrice = Number(item.unitPrice || 0);
+        const totalAmount = Number(item.totalAmount || 0);
+        const sales = Number(itemAny.sales || 0);
+        const pricingUnit = Number(itemAny.pricing?.sellingPrice || 0);
+
+        let normalizedQty = qty;
+        let normalizedUnitPrice = unitPrice;
+        let normalizedTotalAmount = totalAmount;
+        let normalizedQtyRight =
+          typeof item.quantityRight === "number" ? item.quantityRight : 0;
+        let normalizedQtyLeft =
+          typeof item.quantityLeft === "number" ? item.quantityLeft : 0;
+
+        if (normalizedUnitPrice <= 0 && pricingUnit > 0) {
+          normalizedUnitPrice = pricingUnit;
+        }
+        if (normalizedTotalAmount <= 0 && sales > 0) {
+          normalizedTotalAmount = sales;
+        }
+        if (normalizedQty <= 0 && normalizedUnitPrice > 0 && normalizedTotalAmount > 0) {
+          normalizedQty = normalizedTotalAmount / normalizedUnitPrice;
+        }
+        if (
+          normalizedQtyRight <= 0 &&
+          normalizedQtyLeft <= 0 &&
+          normalizedQty > 0
+        ) {
+          const half = normalizedQty / 2;
+          normalizedQtyRight = half;
+          normalizedQtyLeft = half;
+        }
+
+        return {
+          ...item,
+          quantity: String(normalizedQty),
+          quantityRight: normalizedQtyRight,
+          quantityLeft: normalizedQtyLeft,
+          unitPrice: normalizedUnitPrice,
+          totalAmount: normalizedTotalAmount,
+        } as OrderItemType;
+      });
+
       // Filter order items based on user's role
-      let filteredOrderData = orderData;
+      let filteredOrderData = normalizedOrderData;
       
       // Role-based filtering logic (see FRONTEND_GUIDE.md#user-roles)
       if (user?.roles === 'ADMIN') {

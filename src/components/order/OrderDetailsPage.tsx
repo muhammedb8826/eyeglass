@@ -316,17 +316,63 @@ export const OrderDetailsPage = () => {
         orderItems: order.orderItems,
       });
       setFormData(
-        order.orderItems.map((item) => ({
-          ...item,
-          // Normalize serviceId to handle both stock and non-stock services
-          serviceId: item.serviceId || item.nonStockServiceId || '',
-          status: item.status || "Pending",
-          constant:
-            items?.find((i) => i.id === item.itemId)?.unitCategory?.constant ||
-            false,
-          uomsOptions:
-            items?.find((i) => i.id === item.itemId)?.unitCategory?.uoms || [],
-        }))
+        order.orderItems.map((item) => {
+          const itemAny = item as OrderItemType & {
+            sales?: number;
+            pricing?: { sellingPrice?: number };
+          };
+          const qty = Number(item.quantity || 0);
+          const unitPrice = Number(item.unitPrice || 0);
+          const totalAmount = Number(item.totalAmount || 0);
+          const sales = Number(itemAny.sales || 0);
+          const pricingUnit = Number(itemAny.pricing?.sellingPrice || 0);
+
+          // Backfill line fields when API line values are zeroed but pricing/sales exist.
+          let normalizedQty = qty;
+          let normalizedUnitPrice = unitPrice;
+          let normalizedTotalAmount = totalAmount;
+          let normalizedQtyRight =
+            typeof item.quantityRight === "number" ? item.quantityRight : 0;
+          let normalizedQtyLeft =
+            typeof item.quantityLeft === "number" ? item.quantityLeft : 0;
+
+          if (normalizedUnitPrice <= 0 && pricingUnit > 0) {
+            normalizedUnitPrice = pricingUnit;
+          }
+          if (normalizedTotalAmount <= 0 && sales > 0) {
+            normalizedTotalAmount = sales;
+          }
+          if (normalizedQty <= 0 && normalizedUnitPrice > 0 && normalizedTotalAmount > 0) {
+            normalizedQty = normalizedTotalAmount / normalizedUnitPrice;
+          }
+          if (
+            normalizedQtyRight <= 0 &&
+            normalizedQtyLeft <= 0 &&
+            normalizedQty > 0
+          ) {
+            // Fallback for older payloads that only have total quantity.
+            const half = normalizedQty / 2;
+            normalizedQtyRight = half;
+            normalizedQtyLeft = half;
+          }
+
+          return {
+            ...item,
+            quantity: String(normalizedQty),
+            quantityRight: normalizedQtyRight,
+            quantityLeft: normalizedQtyLeft,
+            unitPrice: normalizedUnitPrice,
+            totalAmount: normalizedTotalAmount,
+            // Normalize serviceId to handle both stock and non-stock services
+            serviceId: item.serviceId || item.nonStockServiceId || '',
+            status: item.status || "Pending",
+            constant:
+              items?.find((i) => i.id === item.itemId)?.unitCategory?.constant ||
+              false,
+            uomsOptions:
+              items?.find((i) => i.id === item.itemId)?.unitCategory?.uoms || [],
+          };
+        })
       );
       setRxCalcRows(
         order.orderItems.map(() => ({
