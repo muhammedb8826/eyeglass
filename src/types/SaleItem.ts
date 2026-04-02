@@ -6,6 +6,7 @@ export interface SaleItem {
     id: string;
     saleId?: string;
     itemId: string;
+    itemBaseId?: string;
     uomId: string;
     quantity: number;
     description?: string;

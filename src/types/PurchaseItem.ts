@@ -8,6 +8,7 @@ export interface PurchaseItem {
     id: string;
     purchaseId?: string;
     itemId: string;
+    itemBaseId?: string;
     uomId: string,
     quantity: number;
     unitPrice: number;

@@ -17,9 +17,25 @@ interface SelectUomProps {
   title: string
   /** When true, the control is read-only (e.g. locked order line). */
   isDisabled?: boolean;
+  /** When false, behaves like a non-searchable dropdown (no free typing). */
+  isSearchable?: boolean;
+  /** When false, prevents clearing (useful for required variant selectors). */
+  isClearable?: boolean;
 }
 
-const SelectOptions: React.FC<SelectUomProps> = ({ options, defaultOptionText = 'Select your subject', selectedOption, onOptionChange, containerMargin, labelMargin, border, title, isDisabled = false }) => {
+const SelectOptions: React.FC<SelectUomProps> = ({
+  options,
+  defaultOptionText = 'Select your subject',
+  selectedOption,
+  onOptionChange,
+  containerMargin,
+  labelMargin,
+  border,
+  title,
+  isDisabled = false,
+  isSearchable = true,
+  isClearable = true,
+}) => {
   const value = options.find((o) => o.value === selectedOption) || null;
   const portalTarget = typeof window !== 'undefined' ? document.body : null;
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
@@ -67,8 +83,8 @@ const SelectOptions: React.FC<SelectUomProps> = ({ options, defaultOptionText = 
         <Select<Option, false>
           inputId={title}
           isDisabled={isDisabled}
-          isSearchable
-          isClearable
+          isSearchable={isSearchable}
+          isClearable={isClearable}
           classNamePrefix="rs"
           placeholder={defaultOptionText}
           options={options}

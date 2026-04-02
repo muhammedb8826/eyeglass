@@ -3,5 +3,6 @@ export interface ItemBaseType {
   itemId: string;
   baseCode: string;
   addPower: number;
+  quantity?: number;
 }
 

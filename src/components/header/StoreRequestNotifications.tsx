@@ -107,6 +107,13 @@ export const StoreRequestNotifications = () => {
                 toast.error("Item to update not found");
                 return;
             }
+            if (status === "Stocked-out") {
+                const hasBases = Boolean(itemToUpdate.item?.itemBases && itemToUpdate.item.itemBases.length > 0);
+                if (hasBases && !itemToUpdate.itemBaseId) {
+                    toast.error("Variant (base/ADD) is required before stock-out for this item.");
+                    return;
+                }
+            }
 
             await updateSaleItems({ ...itemToUpdate, status }).unwrap();
             toast.success("Order updated successfully");

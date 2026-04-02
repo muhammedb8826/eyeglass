@@ -119,7 +119,15 @@ export const StoreRequestNotificationTable = ({
                           {index + 1}
                         </td>
                         <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                          {data.item?.name}
+                          <div className="flex flex-col gap-1">
+                            <span>{data.item?.name}</span>
+                            {Boolean(data.item?.itemBases && data.item.itemBases.length > 0) &&
+                              !data.itemBaseId && (
+                                <span className="inline-flex w-fit rounded bg-danger/10 px-2 py-0.5 text-[11px] font-medium text-danger">
+                                  Variant missing
+                                </span>
+                              )}
+                          </div>
                         </td>
                         <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                           {data.description}

@@ -121,9 +121,17 @@ export const PurchaseNotificationTable = ({
                           {index + 1}
                         </td>
                         <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
-                          <Link to={`/dashboard/inventory/purchases/${data.purchaseId}`} className="text-primary dark:text-primary">
-                          {data.item?.name}
-                          </Link>
+                          <div className="flex flex-col gap-1">
+                            <Link to={`/dashboard/inventory/purchases/${data.purchaseId}`} className="text-primary dark:text-primary">
+                            {data.item?.name}
+                            </Link>
+                            {Boolean(data.item?.itemBases && data.item.itemBases.length > 0) &&
+                              !data.itemBaseId && (
+                                <span className="inline-flex w-fit rounded bg-danger/10 px-2 py-0.5 text-[11px] font-medium text-danger">
+                                  Variant missing
+                                </span>
+                              )}
+                          </div>
                         </td>
                         <td className="border-b border-[#eee] py-5 px-4 dark:border-strokedark">
                           {data.description}

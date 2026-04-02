@@ -122,6 +122,13 @@ export const PurchaseNotifications = () => {
                 toast.error('Item to update not found');
                 return;
             }
+            if (status === "Received") {
+                const hasBases = Boolean(itemToUpdate.item?.itemBases && itemToUpdate.item.itemBases.length > 0);
+                if (hasBases && !itemToUpdate.itemBaseId) {
+                    toast.error("Variant (base/ADD) is required before receiving this item.");
+                    return;
+                }
+            }
             await updatePurchaseItem({ ...itemToUpdate, status }).unwrap();
             toast.success('Item status updated successfully!');
             refetch();

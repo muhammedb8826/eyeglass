@@ -4,7 +4,7 @@ import Tabs from "@/common/TabComponent";
 import Breadcrumb from "@/components/Breadcrumb";
 import ErroPage from "@/components/common/ErroPage";
 import { selectCurrentUser } from "@/redux/authSlice";
-import { useGetAllItemsQuery } from "@/redux/items/itemsApiSlice";
+import { useGetAllItemsQuery, useLazyGetItemBasesQuery } from "@/redux/items/itemsApiSlice";
 import { useGetSaleQuery, useUpdateSaleMutation } from "@/redux/sale/saleApiSlice";
 import { ItemType } from "@/types/ItemType";
 import { SaleItem } from "@/types/SaleItem";
@@ -17,6 +17,7 @@ import { useSelector } from "react-redux";
 import { Link, useNavigate, useParams } from "react-router-dom"
 import { toast } from "react-toastify";
 import { handleApiError } from "@/utils/errorHandling";
+import { ItemBaseType } from "@/types/ItemBaseType";
 
 
 
@@ -25,6 +26,12 @@ const tabs = [
     { id: 'items', label: 'Items' },
     { id: 'other-information', label: 'Other information' },
 ];
+
+const formatBaseLabel = (baseCode?: string, addPower?: number, quantity?: number) => {
+    const add = typeof addPower === "number" ? `^+${addPower}` : "";
+    const stock = typeof quantity === "number" ? ` (stock: ${quantity})` : "";
+    return `${baseCode || "Base"}${add}${stock}`;
+};
 
 export const StoreRequestDetails = () => {
     const { id } = useParams();
@@ -37,6 +44,12 @@ export const StoreRequestDetails = () => {
     const [activeTabId, setActiveTabId] = useState<string>('items');
 
     const [formData, setFormData] = useState<SaleItem[]>([]);
+
+    const [fetchItemBases] = useLazyGetItemBasesQuery();
+    const [itemBasesMap, setItemBasesMap] = useState<
+      Record<string, ItemBaseType[]>
+    >({});
+    const loadedItemBasesRef = useRef<Set<string>>(new Set());
 
     const [orderDate, setOrderDate] = useState("");
     const [note, setNote] = useState("");
@@ -73,6 +86,7 @@ export const StoreRequestDetails = () => {
                 id: item.id,
                 saleId: item.saleId,
                 itemId: item.itemId,
+                itemBaseId: item.itemBaseId || "",
                 uomId: item.uomId,
                 quantity: item.quantity,
                 description: item.description || '',
@@ -81,6 +95,28 @@ export const StoreRequestDetails = () => {
                 baseUomId: item.baseUomId,
                 unit: item.unit
             })) || []);
+
+            // Preload item base variants so `itemBaseId` can be matched to an option label.
+            const itemIds = Array.from(
+              new Set(
+                (sale.saleItems || [])
+                  .map((si) => si.itemId)
+                  .filter((v): v is string => Boolean(v)),
+              ),
+            );
+
+            itemIds.forEach((itemId) => {
+              if (loadedItemBasesRef.current.has(itemId)) return;
+              loadedItemBasesRef.current.add(itemId);
+              fetchItemBases(itemId)
+                .unwrap()
+                .then((bases) => {
+                  setItemBasesMap((prev) => ({ ...prev, [itemId]: bases || [] }));
+                })
+                .catch(() => {
+                  setItemBasesMap((prev) => ({ ...prev, [itemId]: [] }));
+                });
+            });
         }
     }, [sale, items]);
 
@@ -130,12 +166,30 @@ export const StoreRequestDetails = () => {
             updatedFormData[index] = {
                 ...updatedFormData[index],
                 itemId: value,
+                // itemBaseId options come from `/items/:id/bases`
+                itemBaseId: "",
                 uomId: selectedItem.defaultUomId,
                 uomsOptions: selectedItem.unitCategory?.uoms || [],
                 baseUomId: selectedItem.unitCategory?.uoms ? selectedItem.unitCategory.uoms.find((u) => u.baseUnit === true)?.id : "",
             };
             updatedFormData[index].unit = calculateUnit(updatedFormData[index], selectedItem);
             setFormData(updatedFormData);
+
+            fetchItemBases(value)
+              .unwrap()
+              .then((bases) => {
+                setItemBasesMap((prev) => ({ ...prev, [value]: bases || [] }));
+                if (bases.length === 1) {
+                  setFormData((prev) => {
+                    const next = [...prev];
+                    if (next[index]) next[index] = { ...next[index], itemBaseId: bases[0].id };
+                    return next;
+                  });
+                }
+              })
+              .catch(() => {
+                setItemBasesMap((prev) => ({ ...prev, [value]: [] }));
+              });
         }
     };
 
@@ -152,6 +206,17 @@ export const StoreRequestDetails = () => {
                 updatedFormData[index].unit = calculateUnit(updatedFormData[index], selectedItem);
             }
             return updatedFormData;
+        });
+    };
+
+    const handleItemBaseChange = (index: number, value: string) => {
+        setFormData((prev) => {
+            const next = [...prev];
+            next[index] = {
+                ...next[index],
+                itemBaseId: value,
+            };
+            return next;
         });
     };
 
@@ -187,6 +252,7 @@ export const StoreRequestDetails = () => {
                 saleId: '',
                 uomId: '',
                 itemId: "",
+                itemBaseId: "",
                 quantity: 1,
                 description: '',
                 status: 'Requested',
@@ -234,16 +300,46 @@ export const StoreRequestDetails = () => {
             return;
         }
 
-        const items = formData.map((item) => ({
+        for (const row of formData) {
+            const selectedItem = items?.find((i) => i.id === row.itemId);
+            const hasKey = Object.prototype.hasOwnProperty.call(
+              itemBasesMap,
+              row.itemId,
+            );
+
+            let bases = itemBasesMap[row.itemId];
+            if (!hasKey) {
+              try {
+                bases = await fetchItemBases(row.itemId).unwrap();
+                setItemBasesMap((prev) => ({ ...prev, [row.itemId]: bases || [] }));
+              } catch {
+                bases = [];
+                setItemBasesMap((prev) => ({ ...prev, [row.itemId]: [] }));
+              }
+            }
+
+            const hasBases = (bases || []).length > 0;
+            if (hasBases && !row.itemBaseId) {
+                toast.error(`Please select base/ADD variant for "${selectedItem?.name || "item"}".`);
+                return;
+            }
+        }
+
+        const payloadItems = formData.map((item) => {
+            const bases = itemBasesMap[item.itemId] || [];
+            const hasBases = bases.length > 0;
+            return ({
             id: item.id,
             itemId: item.itemId,
+            ...(hasBases ? { itemBaseId: item.itemBaseId } : {}),
             uomId: item.uomId,
             quantity: item.quantity,
             description: item.description,
             status: item.status,
             unit: item.unit,
             baseUomId: item.baseUomId,
-        }));
+            });
+        });
 
         const data = {
             id: sale?.id,
@@ -251,7 +347,7 @@ export const StoreRequestDetails = () => {
             orderDate: new Date(orderDate),
             totalQuantity: totalQuantity,
             note: note,
-            saleItems: items,
+            saleItems: payloadItems,
         };
 
 
@@ -343,6 +439,9 @@ export const StoreRequestDetails = () => {
                                                             Quantity
                                                         </th>
                                                         <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                                            Variant (Base^ADD)
+                                                        </th>
+                                                        <th className="py-4 px-4 font-medium text-black dark:text-white">
                                                             UOM
                                                         </th>
                                                         <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
@@ -390,6 +489,49 @@ export const StoreRequestDetails = () => {
                                                                         onChange={(e) => handleQuantityChange(index, e.target.value)}
                                                                         className="w-full rounded  bg-transparent px-2 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                                                                     />
+                                                                </td>
+                                                                <td className="min-w-[240px] relative border border-[#eee] dark:border-strokedark">
+                                                                    {(() => {
+                                                                        const selectedItem = items?.find((it) => it.id === data.itemId);
+                                    const bases =
+                                      itemBasesMap[data.itemId] ||
+                                      selectedItem?.itemBases ||
+                                      [];
+                                    const hasFetched =
+                                      Object.prototype.hasOwnProperty.call(
+                                        itemBasesMap,
+                                        data.itemId,
+                                      );
+
+                                    if (bases.length === 0) {
+                                      return data.itemId && !hasFetched ? (
+                                        <span className="px-2 text-xs text-bodydark">
+                                          Loading variants...
+                                        </span>
+                                      ) : (
+                                        <span className="px-2 text-xs text-bodydark">
+                                          No variant
+                                        </span>
+                                      );
+                                    }
+                                                                        return (
+                                                                            <SelectOptions
+                                                                                options={bases.map((b) => ({
+                                                                                    value: b.id,
+                                                                                    label: formatBaseLabel(b.baseCode, b.addPower, b.quantity),
+                                                                                }))}
+                                                                                defaultOptionText=""
+                                                                                selectedOption={data.itemBaseId || ""}
+                                                                                onOptionChange={(value) => handleItemBaseChange(index, value)}
+                                                                                containerMargin=""
+                                                                                labelMargin=""
+                                                                                border=""
+                                                                                title="Select item base"
+                                                                                    isSearchable={false}
+                                                                                    isClearable={false}
+                                                                            />
+                                                                        );
+                                                                    })()}
                                                                 </td>
                                                                 <td className="min-w-[220px] relative border border-[#eee] dark:border-strokedark">
                                                                     <SelectOptions

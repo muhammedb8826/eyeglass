@@ -9,10 +9,11 @@ import Loader from "@/common/Loader";
 import Tabs from "@/common/TabComponent";
 import SelectOptions from "@/common/SelectOptions";
 import ErroPage from "@/components/common/ErroPage";
-import { useGetAllItemsQuery } from "@/redux/items/itemsApiSlice";
+import { useGetAllItemsQuery, useLazyGetItemBasesQuery } from "@/redux/items/itemsApiSlice";
 import { toast } from "react-toastify";
 import { PurchaseItem } from "@/types/PurchaseItem";
 import { ItemType } from "@/types/ItemType";
+import { ItemBaseType } from "@/types/ItemBaseType";
 import { CiMenuKebab } from "react-icons/ci";
 import { BsTicketDetailed } from "react-icons/bs";
 import { MdDelete } from "react-icons/md";
@@ -25,6 +26,12 @@ const tabs = [
   { id: 'other-information', label: 'Other information' },
 ];
 
+const formatBaseLabel = (baseCode?: string, addPower?: number, quantity?: number) => {
+  const add = typeof addPower === "number" ? `^+${addPower}` : "";
+  const stock = typeof quantity === "number" ? ` (stock: ${quantity})` : "";
+  return `${baseCode || "Base"}${add}${stock}`;
+};
+
 export const PurchaseDetails = () => {
   const { id } = useParams();
   const { data: purchase, isLoading: isItemsLoading, error: itemsError, isError: itemsIsError } = useGetPurchaseQuery(id || '');
@@ -33,6 +40,11 @@ export const PurchaseDetails = () => {
   const [activeTabId, setActiveTabId] = useState<string>('items');
 
   const [formData, setFormData] = useState<PurchaseItem[]>([]);
+
+  const [fetchItemBases] = useLazyGetItemBasesQuery();
+  const [itemBasesMap, setItemBasesMap] = useState<
+    Record<string, ItemBaseType[]>
+  >({});
 
   const [paymentInfo, setPaymentInfo] = useState({
     paymentMethod: "cash",
@@ -115,6 +127,7 @@ export const PurchaseDetails = () => {
         id: item.id,
         purchaseId: item.purchaseId,
         itemId: item.itemId,
+        itemBaseId: item.itemBaseId || "",
         uomId: item.uomId,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
@@ -125,6 +138,26 @@ export const PurchaseDetails = () => {
         baseUomId: item.baseUomId,
         uomsOptions: items?.find((i) => i.id === item.itemId)?.unitCategory?.uoms || [],
       })) || []);
+
+      // Preload item bases for variant selector dropdowns.
+      const itemIds = Array.from(
+        new Set(
+          (purchase.purchaseItems || [])
+            .map((pi) => pi.itemId)
+            .filter((v): v is string => Boolean(v)),
+        ),
+      );
+
+      Promise.all(
+        itemIds.map(async (itemId) => {
+          try {
+            const bases = await fetchItemBases(itemId).unwrap();
+            setItemBasesMap((prev) => ({ ...prev, [itemId]: bases || [] }));
+          } catch {
+            setItemBasesMap((prev) => ({ ...prev, [itemId]: [] }));
+          }
+        }),
+      );
     }
   }, [purchase, items]);
 
@@ -178,6 +211,8 @@ export const PurchaseDetails = () => {
       updatedFormData[index] = {
         ...updatedFormData[index],
         itemId: value,
+        // itemBaseId comes from /items/:id/bases (itemBases isn't present on /items/all)
+        itemBaseId: "",
         uomId: selectedItem.purchaseUomId,
         uomsOptions: selectedItem.unitCategory?.uoms || [],
         baseUomId: selectedItem.unitCategory?.uoms ? selectedItem.unitCategory.uoms.find((u) => u.baseUnit === true)?.id : "",
@@ -185,7 +220,34 @@ export const PurchaseDetails = () => {
       };
       updatedFormData[index].unit = calculateUnit(updatedFormData[index], selectedItem);
       setFormData(updatedFormData);
+
+      fetchItemBases(value)
+        .unwrap()
+        .then((bases) => {
+          setItemBasesMap((prev) => ({ ...prev, [value]: bases }));
+          if (bases.length === 1) {
+            setFormData((prev) => {
+              const next = [...prev];
+              if (next[index]) next[index] = { ...next[index], itemBaseId: bases[0].id };
+              return next;
+            });
+          }
+        })
+        .catch(() => {
+          setItemBasesMap((prev) => ({ ...prev, [value]: [] }));
+        });
     }
+  };
+
+  const handleItemBaseChange = (index: number, value: string) => {
+    setFormData((prev) => {
+      const next = [...prev];
+      next[index] = {
+        ...next[index],
+        itemBaseId: value,
+      };
+      return next;
+    });
   };
 
 
@@ -252,6 +314,7 @@ export const PurchaseDetails = () => {
         purchaseId: '',
         uomId: '',
         itemId: '',
+        itemBaseId: '',
         quantity: 1,
         unitPrice: 0,
         amount: 0,
@@ -326,18 +389,50 @@ export const PurchaseDetails = () => {
       return;
     }
 
-    const items = updatedFormData.map((item) => ({
-      id: item.id,
-      itemId: item.itemId,
-      uomId: item.uomId,
-      quantity: item.quantity,
-      unitPrice: parseFloat(item.unitPrice.toString()),
-      amount: parseFloat(item.amount),
-      description: item.description,
-      status: item.status,
-      unit: item.unit,
-      baseUomId: item.baseUomId,
-    }));
+    for (const row of updatedFormData) {
+      const selectedItem = items?.find((i) => i.id === row.itemId);
+      const hasKey = Object.prototype.hasOwnProperty.call(
+        itemBasesMap,
+        row.itemId,
+      );
+
+      let bases = itemBasesMap[row.itemId];
+      if (!hasKey) {
+        try {
+          bases = await fetchItemBases(row.itemId).unwrap();
+          setItemBasesMap((prev) => ({ ...prev, [row.itemId]: bases || [] }));
+        } catch {
+          bases = [];
+          setItemBasesMap((prev) => ({ ...prev, [row.itemId]: [] }));
+        }
+      }
+
+      const hasBases = (bases || []).length > 0;
+      if (hasBases && !row.itemBaseId) {
+        toast.error(
+          `Please select base/ADD variant for "${selectedItem?.name || "item"}".`,
+        );
+        return;
+      }
+    }
+
+    const payloadItems = updatedFormData.map((item) => {
+      const bases = itemBasesMap[item.itemId] || [];
+      const hasBases = bases.length > 0;
+      return {
+        id: item.id,
+        itemId: item.itemId,
+        ...(hasBases ? { itemBaseId: item.itemBaseId } : {}),
+        uomId: item.uomId,
+        quantity: item.quantity,
+        unitPrice: parseFloat(item.unitPrice.toString()),
+        amount: parseFloat(item.amount),
+        description: item.description,
+        status: item.status,
+        unit: item.unit,
+        baseUomId: item.baseUomId,
+      };
+    });
 
 
     const data = {
@@ -350,7 +445,7 @@ export const PurchaseDetails = () => {
       totalAmount: totalAmount,
       totalQuantity: totalQuantity,
       note: note,
-      purchaseItems: items,
+      purchaseItems: payloadItems,
     };
 
     try {
@@ -444,6 +539,9 @@ export const PurchaseDetails = () => {
                                 <th className="py-4 px-4 font-medium text-black dark:text-white">
                                   Quantity
                                 </th>
+                                <th className="py-4 px-4 font-medium text-black dark:text-white">
+                                  Variant (Base^ADD)
+                                </th>
                                 <th className="min-w-[120px] py-4 px-4 font-medium text-black dark:text-white">
                                   Unit price
                                 </th>
@@ -499,6 +597,49 @@ export const PurchaseDetails = () => {
                                         className="w-full rounded  bg-transparent px-2 font-medium outline-none transition focus:border-primary active:border-primary disabled:cursor-default disabled:bg-whiter dark:border-form-strokedark dark:bg-form-input dark:focus:border-primary"
                                       />
                                     </td>
+                                  <td className="min-w-[240px] relative border border-[#eee] dark:border-strokedark">
+                                    {(() => {
+                                      const selectedItem = items?.find((it) => it.id === data.itemId);
+                                      const bases =
+                                        itemBasesMap[data.itemId] ||
+                                        selectedItem?.itemBases ||
+                                        [];
+                                      const hasFetched =
+                                        Object.prototype.hasOwnProperty.call(
+                                          itemBasesMap,
+                                          data.itemId,
+                                        );
+
+                                      if (bases.length === 0) {
+                                        return data.itemId && !hasFetched ? (
+                                          <span className="px-2 text-xs text-bodydark">
+                                            Loading variants...
+                                          </span>
+                                        ) : (
+                                          <span className="px-2 text-xs text-bodydark">
+                                            No variant
+                                          </span>
+                                        );
+                                      }
+                                      return (
+                                        <SelectOptions
+                                          options={bases.map((b) => ({
+                                            value: b.id,
+                                            label: formatBaseLabel(b.baseCode, b.addPower, b.quantity),
+                                          }))}
+                                          defaultOptionText=""
+                                          selectedOption={data.itemBaseId || ""}
+                                          onOptionChange={(value) => handleItemBaseChange(index, value)}
+                                          containerMargin=""
+                                          labelMargin=""
+                                          border=""
+                                          title="Select item base"
+                                          isSearchable={false}
+                                          isClearable={false}
+                                        />
+                                      );
+                                    })()}
+                                  </td>
                                     <td className="border border-[#eee] dark:border-strokedark">
                                       <input
                                         title="Unit price of the product"
