@@ -178,7 +178,7 @@ const UnitOfMeasurements = () => {
   };
 
   if (isError) {
-    return <ErroPage error={error.toString()} />
+    return <ErroPage error={error} />
   }
 
   return isLoading ? (<Loader />) : (

@@ -159,7 +159,7 @@ export const PricingRegistration = ({ handleModalOpen }: PricingRegistrationProp
     }
   }, [itemId, items]);
 
-  if (isError) return <ErroPage error={error.toString()} />
+  if (isError) return <ErroPage error={error} />
 
   if (isItemsLoading || isServicesLoading || isNonStockServicesLoading) return <Loader />
 

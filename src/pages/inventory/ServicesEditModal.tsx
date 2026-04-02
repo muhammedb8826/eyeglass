@@ -51,7 +51,7 @@ useEffect(() => {
      }
   };
 
-  if(isError) return <ErroPage error={error.toString()} />
+  if(isError) return <ErroPage error={error} />
   return isLoading?(<Loader/>):(
     <>
       <div className="justify-center items-center flex overflow-x-hidden overflow-y-auto fixed inset-0 z-999 bg-black/50 outline-none focus:outline-none">

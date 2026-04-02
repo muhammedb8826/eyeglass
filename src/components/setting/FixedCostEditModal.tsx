@@ -66,7 +66,7 @@ const FixedCostEditModal = ({
     }
   };
 
-  if (isError) return <ErroPage error={error.toString()} />;
+  if (isError) return <ErroPage error={error} />;
 
   if (isLoading || isUpdating) {
     return <Loader />;

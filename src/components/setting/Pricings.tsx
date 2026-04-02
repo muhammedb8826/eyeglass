@@ -76,7 +76,7 @@ export const Pricings = () => {
   };
 
   if (isError) {
-    return <ErroPage error={error.toString()} />;
+    return <ErroPage error={error} />;
   }
 
   if (isLoading) {

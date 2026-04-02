@@ -71,7 +71,7 @@ export const Machines = () => {
   };
 
   if (isError) {
-    return <ErroPage error={error.toString()} />;
+    return <ErroPage error={error} />;
   }
 
   if (isLoading) {

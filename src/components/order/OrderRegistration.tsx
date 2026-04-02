@@ -159,7 +159,6 @@ const formattedDate = date.toISOString().split('T')[0];
 const tabs = [
   { id: 'general', label: 'General' },
   { id: 'payment-terms', label: 'Payment terms' },
-  { id: 'commissions', label: 'Commissions' },
   { id: 'other-information', label: 'Other information' },
 ];
 
@@ -1065,7 +1064,7 @@ export const OrderRegistration = () => {
   };
 
 
-  if (isError) return <ErroPage error={error.toString()} />;
+  if (isError) return <ErroPage error={error} />;
   if (isItemsLoading || isCustomersLoading || isLoading || isPricingsLoading || isServicesLoading || isNonStockServicesLoading || isDiscountsLoading) return <Loader />;
 
   return (

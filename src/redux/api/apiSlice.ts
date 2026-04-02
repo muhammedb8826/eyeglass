@@ -120,7 +120,8 @@ export const apiSlice = createApi({
         'Account',
         'Bincard',
         'LabTools',
-        'Boms'
+        'Boms',
+        'Notifications'
     ],
     endpoints: (builder) => ({
         signup: builder.mutation({

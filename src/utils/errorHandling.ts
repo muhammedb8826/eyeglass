@@ -57,7 +57,8 @@ export const handleApiError = (
   } else if (error.status === 400) {
     return extractErrorMessage(error);
   } else if (error.status === 403) {
-    return 'Access denied';
+    // Prefer backend-provided message for auth/role errors
+    return extractErrorMessage(error);
   } else if (error.status === 404) {
     return 'Resource not found';
   } else if (error.status === 500 || error.status === 'CUSTOM_ERROR') {

@@ -155,12 +155,12 @@ const [deleteNonStockService, { isLoading: isDeletingNonStockService }] = useDel
   // Check for errors first
   if (isError) {
     console.error('Stock services error:', error);
-    return <ErroPage error={error.toString()} />;
+    return <ErroPage error={error} />;
   }
 
   if (isErrorNonStock) {
     console.error('Non-stock services error:', errorNonStock);
-    return <ErroPage error={errorNonStock.toString()} />;
+    return <ErroPage error={errorNonStock} />;
   }
 
   // Check for loading states

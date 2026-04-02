@@ -9,7 +9,12 @@ import ErroPage from "../common/ErroPage";
 import Loader from "@/common/Loader";
 import Breadcrumb from "../Breadcrumb";
 import { NavLink } from "react-router-dom";
-import { useGetUsersQuery, useDeleteUserMutation } from "@/redux/user/userApiSlice";
+import {
+  useDeactivateUserMutation,
+  useActivateUserMutation,
+  useGetUsersQuery,
+  useDeleteUserMutation,
+} from "@/redux/user/userApiSlice";
 import { selectCurrentUser } from "@/redux/authSlice";
 import Pagination from "@/common/Pagination";
 import { toast } from "react-toastify";
@@ -20,7 +25,10 @@ const User = () => {
   const [limit] = useState(10);
   const { data, isLoading, isError, error } = useGetUsersQuery({ page, limit });
   const [deleteUser, { isLoading: isDeleting }] = useDeleteUserMutation();
-  const user = useSelector(selectCurrentUser);
+  const currentUser = useSelector(selectCurrentUser);
+  const [deactivateUser, { isLoading: isDeactivating }] =
+    useDeactivateUserMutation();
+  const [activateUser, { isLoading: isActivating }] = useActivateUserMutation();
 
   const [showPopover, setShowPopover] = useState<number | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -49,7 +57,7 @@ const User = () => {
   };
 
   if (isError) {
-    return <ErroPage error={error.toString()} />;
+    return <ErroPage error={error} />;
   }
 
   if (isLoading) {
@@ -61,16 +69,12 @@ const User = () => {
   const { users, total } = data;
   const totalPages = Math.ceil(total / limit);
 
-  console.log(users);
-
-
-
   const handleAction = (index: number) => {
     setShowPopover((prevIndex) => (prevIndex === index ? null : index));
   };
 
   const handleDeleteUser = (id: string) => {
-    if(user?.roles !== 'ADMIN') {
+    if (currentUser?.roles !== "ADMIN") {
       toast.error('You are not allowed to delete this user');
       return;
     }
@@ -104,7 +108,26 @@ const User = () => {
     });
   };
 
-  console.log(users);
+  const handleToggleActive = async (targetUserId: string, nextActive: boolean) => {
+    if (currentUser?.roles !== "ADMIN") {
+      toast.error("You are not authorized to perform this action");
+      return;
+    }
+    try {
+      if (nextActive) {
+        await activateUser(targetUserId).unwrap();
+        toast.success("User activated");
+      } else {
+        await deactivateUser(targetUserId).unwrap();
+        toast.success("User deactivated");
+      }
+    } catch (e) {
+      console.error("Failed to update user active status:", e);
+      toast.error("Failed to update user status");
+    } finally {
+      setShowPopover(null);
+    }
+  };
 
 
   const userListContent = users
@@ -153,7 +176,7 @@ const User = () => {
               className="absolute z-40 right-10 mt-2 bg-white divide-y divide-gray-100 rounded-lg shadow w-44"
             >
               <ul className="py-2 text-sm text-gray-700">
-                {user?.roles !== 'ADMIN' && (
+                {currentUser?.roles === "ADMIN" && (
                   <>
                     <li>
                       <NavLink
@@ -163,6 +186,16 @@ const User = () => {
                         <FaRegEdit />
                         Edit
                       </NavLink>{" "}
+                    </li>
+                    <li>
+                      <button
+                        type="button"
+                        disabled={isActivating || isDeactivating}
+                        onClick={() => handleToggleActive(user.id, !user.is_active)}
+                        className="text-left flex items-center gap-2 w-full px-4 py-2 hover:bg-gray-100"
+                      >
+                        {user.is_active ? "Deactivate" : "Activate"}
+                      </button>
                     </li>
                     <li>
                       <button
@@ -188,7 +221,7 @@ const User = () => {
     <>
       <Breadcrumb pageName="Users" />
       <div className="flex items-center justify-between flex-column flex-wrap md:flex-row space-y-4 md:space-y-0 pb-4">
-        {user?.roles === 'ADMIN' && (
+        {currentUser?.roles === 'ADMIN' && (
           <div>
             <NavLink to="/dashboard/users/add" className="inline-flex items-center justify-center rounded bg-primary py-2 px-4 text-center font-medium text-white hover:bg-opacity-90">
               <FaUserPlus />

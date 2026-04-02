@@ -71,6 +71,30 @@ export const usersApiSlice = apiSlice.injectEndpoints({
             }),
             invalidatesTags: (_result, _error, id) => [{ type: 'Users', id }, { type: 'Users', id: 'LIST' }],
         }),
+        activateUser: builder.mutation<void, string>({
+            query: (id) => ({
+                url: `/users/${id}/activate`,
+                method: "PATCH",
+            }),
+            invalidatesTags: (_result, _error, id) => [
+                { type: 'Users', id },
+                { type: 'Users', id: 'LIST' },
+                { type: 'Notifications', id: 'LIST' },
+                { type: 'Notifications', id: 'UNREAD' },
+            ],
+        }),
+        deactivateUser: builder.mutation<void, string>({
+            query: (id) => ({
+                url: `/users/${id}/deactivate`,
+                method: "PATCH",
+            }),
+            invalidatesTags: (_result, _error, id) => [
+                { type: 'Users', id },
+                { type: 'Users', id: 'LIST' },
+                { type: 'Notifications', id: 'LIST' },
+                { type: 'Notifications', id: 'UNREAD' },
+            ],
+        }),
     })
 })
 
@@ -83,4 +107,6 @@ export const {
     useDeleteUserMutation,
     useGetUserQuery,
     useGetAllUsersQuery,
+    useActivateUserMutation,
+    useDeactivateUserMutation,
 } = usersApiSlice;

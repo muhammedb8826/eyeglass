@@ -171,7 +171,7 @@ const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     }
   }, [itemId, items]);
 
-  if(isError) return <ErroPage error={error.toString()} />
+  if(isError) return <ErroPage error={error} />
 
   if(isLoading || isItemsLoading || isServicesLoading || isNonStockServicesLoading) return <Loader/>
 

@@ -63,7 +63,7 @@ export const Vendors = () => {
   };
 
   if (isError) {
-    return <ErroPage error={error.toString()} />;
+    return <ErroPage error={error} />;
   }
 
   if (isLoading) return <Loader />;

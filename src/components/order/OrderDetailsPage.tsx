@@ -163,7 +163,6 @@ const findMissingToolValuesDetails = (
 const tabs = [
   { id: "general", label: "General" },
   { id: "payment-terms", label: "Payment terms" },
-  { id: "commissions", label: "Commissions" },
   { id: "other-information", label: "Other information" },
 ];
 
@@ -1588,8 +1587,11 @@ export const OrderDetailsPage = () => {
         return workflowOnly as unknown as OrderItemType;
       }
 
+      const hasService = !!data.serviceId;
       // Check if the service is a non-stock service
-      const isNonStockService = nonStockServices?.some(service => service.id === data.serviceId);
+      const isNonStockService =
+        hasService &&
+        nonStockServices?.some((service) => service.id === data.serviceId);
 
       const r = data.quantityRight;
       const l = data.quantityLeft;
@@ -1605,10 +1607,11 @@ export const OrderDetailsPage = () => {
 
       return {
         itemId: data.itemId,
-        ...(isNonStockService 
-          ? { nonStockServiceId: data.serviceId, isNonStockService: true }
-          : { serviceId: data.serviceId, isNonStockService: false }
-        ),
+        ...(hasService
+          ? isNonStockService
+            ? { nonStockServiceId: data.serviceId, isNonStockService: true }
+            : { serviceId: data.serviceId, isNonStockService: false }
+          : {}),
         width: data.width,
         height: data.height,
         discount: data.discount,
@@ -1842,7 +1845,7 @@ export const OrderDetailsPage = () => {
     </div>
   );
 
-  if (isError) return <ErroPage error={error.toString()} />;
+  if (isError) return <ErroPage error={error} />;
   if (
     isItemsLoading ||
     isCustomersLoading ||

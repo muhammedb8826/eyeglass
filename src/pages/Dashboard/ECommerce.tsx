@@ -10,7 +10,7 @@ import ErroPage from '@/components/common/ErroPage.tsx';
 const ECommerce = () => {
   const { data: orders, isLoading, error } = useGetAllOrdersQuery();
   
-if(error) return <ErroPage error={error.toString()}/>;
+if(error) return <ErroPage error={error}/>;
 
   return isLoading ? (<Loader/>):(
     <>

@@ -70,7 +70,7 @@ export const CommissionDetails = () => {
 
     }
 
-    if (isError) return <ErroPage error={error.toString()} />
+    if (isError) return <ErroPage error={error} />
 
     return isLoading ? (<Loader />) : (
         <>

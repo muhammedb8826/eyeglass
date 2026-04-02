@@ -13,10 +13,10 @@ export const Reports = () => {
 
   if (isError || isPurchasesError) {
     if (error) {
-      return <ErroPage error={error.toString()} />
+      return <ErroPage error={error} />
     }
     if (purchasesError) {
-      return <ErroPage error={purchasesError.toString()} />
+      return <ErroPage error={purchasesError} />
     }
   }
 

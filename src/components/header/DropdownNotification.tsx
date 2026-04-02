@@ -1,22 +1,46 @@
-import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { RootState } from '@/redux/store';
-import Loader from '@/common/Loader';
-import { useGetAllPurchasesQuery } from '@/redux/purchase/purchaseApiSlice';
-import { useGetAllSalesQuery } from '@/redux/sale/saleApiSlice';
-import { useGetAllOrdersQuery } from '@/redux/order/orderApiSlice';
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { RootState } from "@/redux/store";
+import {
+  useGetNotificationsQuery,
+  useGetUnreadCountQuery,
+  useMarkAllNotificationsReadMutation,
+  useMarkNotificationReadMutation,
+} from "@/redux/notifications/notificationsApiSlice";
 
 const DropdownNotification = () => {
-  const { user } = useSelector((state: RootState) => state.auth);
-  const { data: orders, isLoading, refetch: refetchOrder } = useGetAllOrdersQuery();
-  const { data: purchases, isLoading: isPurchaseLoading, refetch: refetchPurchase } = useGetAllPurchasesQuery();
-  const { data: sales, isLoading: isSalesLoading, refetch: refetchSale } = useGetAllSalesQuery();
+  const accessToken = useSelector((state: RootState) => state.auth.accessToken);
 
+  const { data: unreadData } = useGetUnreadCountQuery(undefined, {
+    skip: !accessToken,
+    pollingInterval: 60_000,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
+  });
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const triggerRef = useRef<HTMLAnchorElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const {
+    data: listData,
+    isFetching: listFetching,
+    isError: listError,
+  } = useGetNotificationsQuery(
+    { page: 1, limit: 10, status: "all" },
+    {
+      skip: !accessToken || !dropdownOpen,
+      refetchOnMountOrArgChange: true,
+    }
+  );
+
+  const [markRead] = useMarkNotificationReadMutation();
+  const [markAllRead, { isLoading: markingAll }] =
+    useMarkAllNotificationsReadMutation();
+
+  const unread = unreadData?.unread ?? 0;
+  const items = listData?.items ?? [];
 
   useEffect(() => {
     const clickHandler = ({ target }: MouseEvent) => {
@@ -34,39 +58,35 @@ const DropdownNotification = () => {
   });
 
   useEffect(() => {
-    if (dropdownOpen) {
-      refetchOrder();
-      refetchPurchase();
-      refetchSale();
-    }
-  }, [dropdownOpen, refetchOrder, refetchPurchase, refetchSale]);
-
-  // close if the esc key is pressed
-  useEffect(() => {
     const keyHandler = ({ keyCode }: KeyboardEvent) => {
       if (!dropdownOpen || keyCode !== 27) return;
       setDropdownOpen(false);
     };
-    document.addEventListener('keydown', keyHandler);
-    return () => document.removeEventListener('keydown', keyHandler);
+    document.addEventListener("keydown", keyHandler);
+    return () => document.removeEventListener("keydown", keyHandler);
   });
 
-  if (isLoading || isPurchaseLoading || isSalesLoading) {
-    return <Loader />;
+  if (!accessToken) {
+    return null;
   }
 
   return (
-
     <li className="relative">
       <Link
         ref={triggerRef}
-        onClick={() => setDropdownOpen(!dropdownOpen)}
+        onClick={(e) => {
+          e.preventDefault();
+          setDropdownOpen((open) => !open);
+        }}
         to="#"
+        aria-label="Notifications"
         className="relative flex h-8.5 w-8.5 items-center justify-center rounded-full border-[0.5px] border-stroke bg-gray hover:text-primary dark:border-strokedark dark:bg-meta-4 dark:text-white"
       >
-        <span className="absolute -top-0.5 right-0 z-1 h-2 w-2 rounded-full bg-meta-1">
-          <span className="absolute -z-1 inline-flex h-full w-full animate-ping rounded-full bg-meta-1 opacity-75"></span>
-        </span>
+        {unread > 0 && (
+          <span className="absolute -right-1 -top-1 z-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-meta-1 px-1 text-[10px] font-semibold leading-none text-white">
+            {unread > 99 ? "99+" : unread}
+          </span>
+        )}
 
         <svg
           className="fill-current duration-300 ease-in-out"
@@ -85,445 +105,84 @@ const DropdownNotification = () => {
 
       <div
         ref={dropdownRef}
-        onFocus={() => setDropdownOpen(true)}
-        onBlur={() => setDropdownOpen(false)}
-        className={`absolute -right-27 mt-2.5 flex h-90 w-75 flex-col rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark sm:right-0 sm:w-80 ${dropdownOpen === true ? 'block' : 'hidden'
-          }`}
+        className={`absolute -right-27 mt-2.5 flex max-h-90 w-75 flex-col rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark sm:right-0 sm:w-80 ${
+          dropdownOpen ? "block" : "hidden"
+        }`}
       >
-        <div className="px-4.5 py-3">
-          <h5 className="text-sm font-medium text-bodydark2">Notification</h5>
+        <div className="flex items-center justify-between gap-2 px-4.5 py-3">
+          <h5 className="text-sm font-medium text-bodydark2">Notifications</h5>
+          <button
+            type="button"
+            disabled={unread === 0 || markingAll}
+            onClick={() => markAllRead()}
+            className="text-xs font-medium text-primary disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Mark all read
+          </button>
         </div>
 
-        <ul className="flex h-auto flex-col overflow-y-auto">
-
-          {user?.roles === "ADMIN" && (
-            <>
-              {orders && orders.length > 0 ? (
-                // Filter orders to only include those with items to review
-                orders.filter(notification => {
-                  // Filter items that are at key review/production steps
-                  const filteredItems = notification.orderItems?.filter(
-                    (item) =>
-                      item.status === "Edited" ||
-                      item.status === "Rejected" ||
-                      item.status === "Completed" ||
-                      item.status === "InProgress"
-                  );
-                  return filteredItems.length > 0; // Keep orders with items to review
-                }).map((notification) => {
-                  const filteredItemsCount = notification.orderItems.filter(
-                    (item) =>
-                      item.status === "Edited" ||
-                      item.status === "Rejected" ||
-                      item.status === "Completed" ||
-                      item.status === "InProgress"
-                  ).length;
-
-                  return (
-                    <li key={notification.id}>
-                      <Link
-                        onClick={() => setDropdownOpen(false)}
-                        className="flex flex-col gap-2.5 border-t border-stroke px-4.5 py-3 hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4"
-                        to={`/dashboard/notifications/${notification.id}`}
-                      >
-                        <p className="text-sm">
-                          <span className="text-black dark:text-white">
-                            Your {notification.series} order is ready to review
-                          </span>{' '}
-                          {filteredItemsCount > 0
-                            ? `${filteredItemsCount} items to review`
-                            : 'No items to review'}
-                        </p>
-                        <p className="text-xs">{notification.orderDate}</p>
-                      </Link>
-                    </li>
-                  );
-                })
-              ) : (
-                <li className='flex flex-col gap-2.5 border-t border-stroke px-4.5 py-3 hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4'>
-                  <p className="text-sm">
-                    <span className="text-black dark:text-white">
-                      No new notifications
-                    </span>
-                  </p>
-                </li>
-              )}
-            </>
+        <ul className="flex max-h-64 flex-col overflow-y-auto">
+          {listFetching && (
+            <li className="border-t border-stroke px-4.5 py-3 text-sm text-bodydark2 dark:border-strokedark">
+              Loading…
+            </li>
           )}
 
-
-          {user?.roles === "ADMIN" && (
-            <>
-              {purchases && purchases?.length > 0 ? (
-                purchases.filter(notification => {
-                  const filteredItems = notification.purchaseItems?.filter(
-                    (item) => item.status === "Purchased" || item.status === "Returned"
-                  );
-                  return filteredItems.length > 0; // Keep orders with items to review
-                }).map((notification) => {
-                  const filteredItemsCount = notification.purchaseItems.filter(
-                    (item) => item.status === "Purchased" || item.status === "Returned"
-                  ).length;
-
-                  return (
-                    <li key={notification.id}>
-
-                      <Link
-                        onClick={() => setDropdownOpen(false)}
-                        className="flex flex-col gap-2.5 border-t border-stroke px-4.5 py-3 hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4"
-                        to={`/dashboard/purchase-notifications/${notification.id}`}
-                      >
-                        <p className="text-sm">
-                          <span className="text-black dark:text-white">
-                            Your {notification.series} Purchase is ready to review
-                          </span>{' '}
-                          {filteredItemsCount > 0
-                            ? `${filteredItemsCount} items to review`
-                            : 'No items to review'}
-                        </p>
-                        <p className="text-xs">{new Date(notification.orderDate).toISOString().split('T')[0]}</p>
-                      </Link>
-                    </li>
-                  );
-                })
-              ) : (
-                <li className='flex flex-col gap-2.5 border-t border-stroke px-4.5 py-3 hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4'>
-                  <p className="text-sm">
-                    <span className="text-black dark:text-white">
-                      No new notifications
-                    </span>
-                  </p>
-                </li>
-              )}
-            </>
+          {!listFetching && listError && (
+            <li className="border-t border-stroke px-4.5 py-3 text-sm text-meta-1 dark:border-strokedark">
+              Could not load notifications.
+            </li>
           )}
 
-
-          {user?.roles === "ADMIN" && (
-            <>
-              {sales && sales?.length > 0 ? (
-                sales.filter(notification => {
-                  const filteredItems = notification.saleItems?.filter(
-                    (item) => item.status === "Requested" || item.status === "Rejected"
-                  );
-                  return filteredItems.length > 0; // Keep orders with items to review
-                }).map((notification) => {
-                  const filteredItemsCount = notification.saleItems.filter(
-                    (item) => item.status === "Requested" || item.status === "Rejected"
-                  ).length;
-
-                  return (
-                    <li key={notification.id}>
-
-                      <Link
-                        onClick={() => setDropdownOpen(false)}
-                        className="flex flex-col gap-2.5 border-t border-stroke px-4.5 py-3 hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4"
-                        to={`/dashboard/store-request-notifications/${notification.id}`}
-                      >
-                        <p className="text-sm">
-                          <span className="text-black dark:text-white">
-                            Your {notification.series} Request is ready to review
-                          </span>{' '}
-                          {filteredItemsCount > 0
-                            ? `${filteredItemsCount} items to review`
-                            : 'No items to review'}
-                        </p>
-                        <p className="text-xs">{new Date(notification.orderDate).toISOString().split('T')[0]}</p>
-                      </Link>
-                    </li>
-                  );
-                })
-              ) : (
-                <li className='flex flex-col gap-2.5 border-t border-stroke px-4.5 py-3 hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4'>
-                  <p className="text-sm">
-                    <span className="text-black dark:text-white">
-                      No new notifications
-                    </span>
-                  </p>
-                </li>
-              )}
-            </>
+          {!listFetching && !listError && items.length === 0 && (
+            <li className="border-t border-stroke px-4.5 py-3 dark:border-strokedark">
+              <p className="text-sm text-black dark:text-white">
+                No notifications yet
+              </p>
+            </li>
           )}
 
-          {user?.roles === "LAB_TECHNICIAN" && (
-            <>
-              {orders && orders.length > 0 ? (
-                // Filter orders to only include those with items to review
-                orders.filter(notification => {
-                  // Filter items that are either "Received" or "Rejected"
-                  const filteredItems = notification.orderItems?.filter(
-                    (item) => item.status === "Received" || item.status === "Rejected"
-                  );
-                  return filteredItems.length > 0; // Keep orders with items to review
-                }).map((notification) => {
-                  const filteredItemsCount = notification.orderItems.filter(
-                    (item) => item.status === "Received" || item.status === "Rejected"
-                  ).length;
-
-                  return (
-                    <li key={notification.id}>
-                      <Link
-                        onClick={() => setDropdownOpen(false)}
-                        className="flex flex-col gap-2.5 border-t border-stroke px-4.5 py-3 hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4"
-                        to={`/dashboard/notifications/${notification.id}`}
-                      >
-                        <p className="text-sm">
-                          <span className="text-black dark:text-white">
-                            Your {notification.series} order is ready to review
-                          </span>{' '}
-                          {filteredItemsCount > 0
-                            ? `${filteredItemsCount} items to review`
-                            : 'No items to review'}
-                        </p>
-                        <p className="text-xs">{notification.orderDate}</p>
-                      </Link>
-                    </li>
-                  );
-                })
-              ) : (
-                <li className='flex flex-col gap-2.5 border-t border-stroke px-4.5 py-3 hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4'>
-                  <p className="text-sm">
-                    <span className="text-black dark:text-white">
-                      No new notifications
+          {!listFetching &&
+            !listError &&
+            items.map((n) => (
+              <li key={n.id}>
+                <button
+                  type="button"
+                  className={`flex w-full flex-col gap-1 border-t border-stroke px-4.5 py-3 text-left hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4 ${
+                    !n.isRead ? "bg-gray-2/60 dark:bg-meta-4/40" : ""
+                  }`}
+                  onClick={() => {
+                    if (!n.isRead) {
+                      void markRead(n.id);
+                    }
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium text-black dark:text-white">
+                      {n.title}
+                    </p>
+                    <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-primary">
+                      {n.type}
                     </span>
+                  </div>
+                  <p className="text-xs text-bodydark2">{n.message}</p>
+                  <p className="text-[11px] text-bodydark2">
+                    {new Date(n.createdAt).toLocaleString()}
                   </p>
-                </li>
-              )}
-            </>
-          )}
-
-          {user?.roles === "RECEPTION" && (
-            <>
-              {orders && orders.length > 0 ? (
-                // Filter orders to only include those with items to review
-                orders.filter(notification => {
-                  // Filter items that are either "Received" or "Rejected"
-                  const filteredItems = notification.orderItems?.filter(
-                    (item) => item.status === "Received" || item.status === "Rejected" || item.status === "Completed"
-                  );
-                  return filteredItems.length > 0; // Keep orders with items to review
-                }).map((notification) => {
-                  const filteredItemsCount = notification.orderItems.filter(
-                    (item) => item.status === "Received" || item.status === "Rejected" || item.status === "Completed"
-                  ).length;
-
-                  return (
-                    <li key={notification.id}>
-                      <Link
-                        onClick={() => setDropdownOpen(false)}
-                        className="flex flex-col gap-2.5 border-t border-stroke px-4.5 py-3 hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4"
-                        to={`/dashboard/notifications/${notification.id}`}
-                      >
-                        <p className="text-sm">
-                          <span className="text-black dark:text-white">
-                            Your {notification.series} order is ready to review
-                          </span>{' '}
-                          {filteredItemsCount > 0
-                            ? `${filteredItemsCount} items to review`
-                            : 'No items to review'}
-                        </p>
-                        <p className="text-xs">{notification.orderDate}</p>
-                      </Link>
-                    </li>
-                  );
-                })
-              ) : (
-                <li className='flex flex-col gap-2.5 border-t border-stroke px-4.5 py-3 hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4'>
-                  <p className="text-sm">
-                    <span className="text-black dark:text-white">
-                      No new notifications
-                    </span>
-                  </p>
-                </li>
-              )}
-            </>
-          )}
-
-          {user?.roles === "OPERATOR" && (
-            <>
-            {orders && orders.length > 0 ? (
-              // Filter orders to only include those with items to review
-              orders.filter(notification => {
-                // Filter items that are either "Received" or "Rejected"
-                const filteredItems = notification.orderItems?.filter(
-                  (item) => item.status === "Approved"
-                );
-                return filteredItems.length > 0; // Keep orders with items to review
-              }).map((notification) => {
-                const filteredItemsCount = notification.orderItems.filter(
-                   (item) => item.status === "Approved"
-                ).length;
-
-                return (
-                  <li key={notification.id}>
-                    <Link
-                      onClick={() => setDropdownOpen(false)}
-                      className="flex flex-col gap-2.5 border-t border-stroke px-4.5 py-3 hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4"
-                      to={`/dashboard/notifications/${notification.id}`}
-                    >
-                      <p className="text-sm">
-                        <span className="text-black dark:text-white">
-                          Your {notification.series} order is ready to review
-                        </span>{' '}
-                        {filteredItemsCount > 0
-                          ? `${filteredItemsCount} items to review`
-                          : 'No items to review'}
-                      </p>
-                      <p className="text-xs">{notification.orderDate}</p>
-                    </Link>
-                  </li>
-                );
-              })
-            ) : (
-              <li className='flex flex-col gap-2.5 border-t border-stroke px-4.5 py-3 hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4'>
-                <p className="text-sm">
-                  <span className="text-black dark:text-white">
-                    No new notifications
-                  </span>
-                </p>
+                </button>
               </li>
-            )}
-          </>
-        )}
-
-          {user?.roles === "FINANCE" && (
-            <>
-              {purchases && purchases?.length > 0 ? (
-                purchases.filter(notification => {
-                  const filteredItems = notification.purchaseItems?.filter(
-                    (item) => item.status === "Purchased"
-                  );
-                  return filteredItems.length > 0; // Keep purchases with items to review
-                }).map((notification) => {
-                  const filteredItemsCount = notification.purchaseItems.filter(
-                    (item) => item.status === "Purchased"
-                  ).length;
-
-                  return (
-                    <li key={notification.id}>
-                      <Link
-                        onClick={() => setDropdownOpen(false)}
-                        className="flex flex-col gap-2.5 border-t border-stroke px-4.5 py-3 hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4"
-                        to={`/dashboard/purchase-notifications/${notification.id}`}
-                      >
-                        <p className="text-sm">
-                          <span className="text-black dark:text-white">
-                            Your {notification.series} purchase is ready to review
-                          </span>{' '}
-                          {filteredItemsCount > 0
-                            ? `${filteredItemsCount} items to review`
-                            : 'No items to review'}
-                        </p>
-                        <p className="text-xs">{new Date(notification.orderDate).toISOString().split('T')[0]}</p>
-                      </Link>
-                    </li>
-                  );
-                })
-              ) : (
-                <li className='flex flex-col gap-2.5 border-t border-stroke px-4.5 py-3 hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4'>
-                  <p className="text-sm">
-                    <span className="text-black dark:text-white">
-                      No new notifications
-                    </span>{' '}
-                  </p>
-                </li>
-              )}
-            </>
-          )}
-
-          {user?.roles === "PURCHASER" && (
-            <>
-              {purchases && purchases?.length > 0 ? (
-                purchases.filter(notification => {
-                  const filteredItems = notification.purchaseItems?.filter(
-                    (item) => item.status === "Approved"
-                  );
-                  return filteredItems.length > 0; // Keep orders with items to review
-                }).map((notification) => {
-                  const filteredItemsCount = notification.purchaseItems.filter(
-                    (item) => item.status === "Approved"
-                  ).length;
-
-                  return (
-                    <li key={notification.id}>
-
-                      <Link
-                        onClick={() => setDropdownOpen(false)}
-                        className="flex flex-col gap-2.5 border-t border-stroke px-4.5 py-3 hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4"
-                        to={`/dashboard/purchase-notifications/${notification.id}`}
-                      >
-                        <p className="text-sm">
-                          <span className="text-black dark:text-white">
-                            Your {notification.series} Purchase is ready to review
-                          </span>{' '}
-                          {filteredItemsCount > 0
-                            ? `${filteredItemsCount} items to review`
-                            : 'No items to review'}
-                        </p>
-                        <p className="text-xs">{new Date(notification.orderDate).toISOString().split('T')[0]}</p>
-                      </Link>
-                    </li>
-                  );
-                })
-              ) : (
-                <li className='flex flex-col gap-2.5 border-t border-stroke px-4.5 py-3 hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4'>
-                  <p className="text-sm">
-                    <span className="text-black dark:text-white">
-                      No new notifications
-                    </span>
-                  </p>
-                </li>
-              )}
-            </>
-          )}
-
-          {user?.roles === "PURCHASER" && (
-            <>
-              {sales && sales?.length > 0 ? (
-                sales.filter(notification => {
-                  const filteredItems = notification.saleItems?.filter(
-                    (item) => item.status === "Approved"
-                  );
-                  return filteredItems.length > 0; // Keep orders with items to review
-                }).map((notification) => {
-                  const filteredItemsCount = notification.saleItems.filter(
-                    (item) => item.status === "Approved"
-                  ).length;
-
-                  return (
-                    <li key={notification.id}>
-
-                      <Link
-                        onClick={() => setDropdownOpen(false)}
-                        className="flex flex-col gap-2.5 border-t border-stroke px-4.5 py-3 hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4"
-                        to={`/dashboard/store-request-notifications/${notification.id}`}
-                      >
-                        <p className="text-sm">
-                          <span className="text-black dark:text-white">
-                            Your {notification.series} Request is ready to review
-                          </span>{' '}
-                          {filteredItemsCount > 0
-                            ? `${filteredItemsCount} items to review`
-                            : 'No items to review'}
-                        </p>
-                        <p className="text-xs">{new Date(notification.orderDate).toISOString().split('T')[0]}</p>
-                      </Link>
-                    </li>
-                  );
-                })
-              ) : (
-                <li className='flex flex-col gap-2.5 border-t border-stroke px-4.5 py-3 hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4'>
-                  <p className="text-sm">
-                    <span className="text-black dark:text-white">
-                      No new notifications
-                    </span>
-                  </p>
-                </li>
-              )}
-            </>
-          )}
-
+            ))}
         </ul>
+
+        <div className="border-t border-stroke px-4.5 py-3 dark:border-strokedark">
+          <Link
+            onClick={() => setDropdownOpen(false)}
+            className="block text-center text-sm font-medium text-primary"
+            to="/dashboard/in-app-notifications"
+          >
+            View all
+          </Link>
+        </div>
       </div>
     </li>
   );

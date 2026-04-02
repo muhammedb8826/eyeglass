@@ -84,7 +84,7 @@ export const DiscountRegistration = ({ handleModalOpen }: PricingRegistrationPro
     }
   }, [itemId, items]);
 
-  if (isError) return <ErroPage error={error.toString()} />
+  if (isError) return <ErroPage error={error} />
 
   if (isItemsLoading) return <Loader />
 

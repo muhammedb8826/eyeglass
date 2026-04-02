@@ -55,7 +55,7 @@ const CustomerEdit = ({ handleModalOpen, id }: { handleModalOpen: (isOpen: boole
         }
     }
 
-    if(isError) return <ErroPage error={error.toString()} />
+    if(isError) return <ErroPage error={error} />
 
     return isLoading ? (<Loader/>):(
         <>

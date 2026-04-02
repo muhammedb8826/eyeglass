@@ -388,7 +388,7 @@ export const ItemEdit = () => {
     setPurchaseUom(value);
   };
 
-  if (isError) return <ErroPage error={error.toString()} />;
+  if (isError) return <ErroPage error={error} />;
   if (isLoading) return <Loader />;
 
   return (

@@ -1,11 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import SidebarLinkGroup from "./SidebarLinkGroup";
-import { TbBuildingWarehouse, TbFileReport } from "react-icons/tb";
+import { TbBell, TbBuildingWarehouse, TbFileReport } from "react-icons/tb";
 import { MdOutlineWarehouse, MdPeopleOutline } from "react-icons/md";
-import { RiHandCoinLine } from "react-icons/ri";
 import { LiaUsersCogSolid } from "react-icons/lia";
-import {  FaPersonWalkingLuggage } from "react-icons/fa6";
 import Logo from '../assets/images/logo/Logo.png';
 
 interface SidebarProps {
@@ -24,6 +22,72 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
   const [sidebarExpanded, setSidebarExpanded] = useState(
     storedSidebarExpanded === null ? false : storedSidebarExpanded === "true"
   );
+
+  const inventorySubLinks = [
+    { to: "/dashboard/inventory/stock", label: "Stock" },
+    { to: "/dashboard/inventory/store-request", label: "Store Request" },
+    { to: "/dashboard/inventory/purchases", label: "Purchases" },
+    { to: "/dashboard/inventory/machines", label: "Machines" },
+    { to: "/dashboard/inventory/lab-tools", label: "Lab Tools" },
+    { to: "/dashboard/inventory/boms", label: "BOM" },
+    // Services and Operator Stock removed per request
+    { to: "/dashboard/inventory/items", label: "Items" },
+  ];
+
+  const settingsSubLinks = [
+    // Assign Machines, Fixed Cost, Discounts removed per request
+    {
+      to: "/dashboard/settings/unit-category",
+      label: "Units",
+    },
+    {
+      to: "/dashboard/settings/pricings",
+      label: "Pricings",
+    },
+  ];
+
+  const othersLinks = [
+    {
+      to: "/dashboard/users",
+      label: "Users",
+      icon: <LiaUsersCogSolid />,
+      className: `group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${
+        pathname.includes("user") && "bg-graydark dark:bg-meta-4"
+      }`,
+    },
+    {
+      to: "/dashboard/inventory/vendors",
+      label: "Vendors",
+      icon: <TbBuildingWarehouse />,
+      className: `group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${
+        pathname.includes("chart") && "bg-graydark dark:bg-meta-4"
+      }`,
+    },
+    {
+      to: "/dashboard/customers",
+      label: "Customers",
+      icon: <MdPeopleOutline />,
+      className: `group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${
+        pathname.includes("chart") && "bg-graydark dark:bg-meta-4"
+      }`,
+    },
+    {
+      to: "/dashboard/reports",
+      label: "Reports",
+      icon: <TbFileReport />,
+      className: `group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${
+        pathname.includes("user") && "bg-graydark dark:bg-meta-4"
+      }`,
+    },
+    {
+      to: "/dashboard/in-app-notifications",
+      label: "Notifications",
+      icon: <TbBell />,
+      className: `group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${
+        pathname.includes("in-app-notifications") && "bg-graydark dark:bg-meta-4"
+      }`,
+    },
+  ];
 
   // close on click outside
   useEffect(() => {
@@ -337,105 +401,19 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                           }`}
                       >
                         <ul className="mt-4 mb-5.5 flex flex-col gap-2.5 pl-6">
-                          <li>
-                            <NavLink
-                              to="/dashboard/inventory/stock"
-                              className={({ isActive }) =>
-                                "group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white " +
-                                (isActive && "!text-white")
-                              }
-                            >
-                              Stock
-                            </NavLink>
-                          </li>
-                          <li>
-                            <NavLink
-                              to="/dashboard/inventory/operator-stock"
-                              className={({ isActive }) =>
-                                "group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white " +
-                                (isActive && "!text-white")
-                              }
-                            >
-                              Operator Stock
-                            </NavLink>
-                          </li>
-                          <li>
-                            <NavLink
-                              to="/dashboard/inventory/store-request"
-                              className={({ isActive }) =>
-                                "group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white " +
-                                (isActive && "!text-white")
-                              }
-                            >
-                              Store Request
-                            </NavLink>
-                          </li>
-                          <li>
-                            <NavLink
-                              to="/dashboard/inventory/purchases"
-                              className={({ isActive }) =>
-                                "group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white " +
-                                (isActive && "!text-white")
-                              }
-                            >
-                              Purchases
-                            </NavLink>
-                          </li>
-                          <li>
-                            <NavLink
-                              to="/dashboard/inventory/machines"
-                              className={({ isActive }) =>
-                                "group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white " +
-                                (isActive && "!text-white")
-                              }
-                            >
-                              Machines
-                            </NavLink>
-                          </li>
-                          <li>
-                            <NavLink
-                              to="/dashboard/inventory/lab-tools"
-                              className={({ isActive }) =>
-                                "group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white " +
-                                (isActive && "!text-white")
-                              }
-                            >
-                              Lab Tools
-                            </NavLink>
-                          </li>
-                          <li>
-                            <NavLink
-                              to="/dashboard/inventory/boms"
-                              className={({ isActive }) =>
-                                "group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white " +
-                                (isActive && "!text-white")
-                              }
-                            >
-                              BOM
-                            </NavLink>
-                          </li>
-                          <li>
-                            <NavLink
-                              to="/dashboard/inventory/service"
-                              className={({ isActive }) =>
-                                "group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white " +
-                                (isActive && "!text-white")
-                              }
-                            >
-                              Services
-                            </NavLink>
-                          </li>
-                          <li>
-                            <NavLink
-                              to="/dashboard/inventory/items"
-                              className={({ isActive }) =>
-                                "group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white " +
-                                (isActive && "!text-white")
-                              }
-                            >
-                              Items
-                            </NavLink>
-                          </li>
+                          {inventorySubLinks.map((link) => (
+                            <li key={link.to}>
+                              <NavLink
+                                to={link.to}
+                                className={({ isActive }) =>
+                                  "group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white " +
+                                  (isActive && "!text-white")
+                                }
+                              >
+                                {link.label}
+                              </NavLink>
+                            </li>
+                          ))}
                         </ul>
                       </div>
                       {/* <!-- Dropdown Menu End --> */}
@@ -522,61 +500,19 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                           }`}
                       >
                         <ul className="mt-4 mb-5.5 flex flex-col gap-2.5 pl-6">
-                          <li>
-                            <NavLink
-                              to="/dashboard/settings/assign-machines"
-                              className={({ isActive }) =>
-                                "group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white " +
-                                (isActive && "!text-white")
-                              }
-                            >
-                              Assign Machines
-                            </NavLink>
-                          </li>
-                          <li>
-                            <NavLink
-                              to="/dashboard/settings/unit-category"
-                              className={({ isActive }) =>
-                                "group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white " +
-                                (isActive && "!text-white")
-                              }
-                            >
-                              Units
-                            </NavLink>
-                          </li>
-                          <li>
-                            <NavLink
-                              to="/dashboard/settings/pricings"
-                              className={({ isActive }) =>
-                                "group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white " +
-                                (isActive && "!text-white")
-                              }
-                            >
-                              Pricings
-                            </NavLink>
-                          </li>
-                          <li>
-                            <NavLink
-                              to="/dashboard/settings/fixed-cost"
-                              className={({ isActive }) =>
-                                "group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white " +
-                                (isActive && "!text-white")
-                              }
-                            >
-                              Fixed Cost
-                            </NavLink>
-                          </li>
-                          <li>
-                            <NavLink
-                              to="/dashboard/settings/discounts"
-                              className={({ isActive }) =>
-                                "group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white " +
-                                (isActive && "!text-white")
-                              }
-                            >
-                              Discounts
-                            </NavLink>
-                          </li>
+                          {settingsSubLinks.map((link) => (
+                            <li key={link.to}>
+                              <NavLink
+                                to={link.to}
+                                className={({ isActive }) =>
+                                  "group relative flex items-center gap-2.5 rounded-md px-4 font-medium text-bodydark2 duration-300 ease-in-out hover:text-white " +
+                                  (isActive && "!text-white")
+                                }
+                              >
+                                {link.label}
+                              </NavLink>
+                            </li>
+                          ))}
                         </ul>
                       </div>
                       {/* <!-- Dropdown Menu End --> */}
@@ -595,66 +531,14 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
             </h3>
 
             <ul className="mb-6 flex flex-col gap-1.5">
-              <li>
-                <NavLink
-                  to="/dashboard/users"
-                  className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${pathname.includes("user") && "bg-graydark dark:bg-meta-4"
-                    }`}
-                >
-                  <LiaUsersCogSolid />
-                  Users
-                </NavLink>
-              </li>
-              <li>
-                <NavLink
-                  to="/dashboard/inventory/vendors"
-                  className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${pathname.includes("chart") && "bg-graydark dark:bg-meta-4"
-                    }`}
-                >
-                  <TbBuildingWarehouse />
-                  Vendors
-                </NavLink>
-              </li>
-              <li>
-                <NavLink
-                  to="/dashboard/customers"
-                  className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${pathname.includes("chart") && "bg-graydark dark:bg-meta-4"
-                    }`}
-                >
-                  <MdPeopleOutline />
-                  Customers
-                </NavLink>
-              </li>
-              <li>
-                <NavLink
-                  to="/dashboard/commission"
-                  className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${pathname.includes("chart") && "bg-graydark dark:bg-meta-4"
-                    }`}
-                >
-                  <RiHandCoinLine />
-                  Commissions
-                </NavLink>
-              </li>
-              <li>
-                <NavLink
-                  to="/dashboard/sales-partners"
-                  className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${pathname.includes("chart") && "bg-graydark dark:bg-meta-4"
-                    }`}
-                >
-                  <FaPersonWalkingLuggage />
-                  Sales partners
-                </NavLink>
-              </li>
-              <li>
-                <NavLink
-                  to="/dashboard/reports"
-                  className={`group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${pathname.includes("user") && "bg-graydark dark:bg-meta-4"
-                    }`}
-                >
-                  <TbFileReport />
-                  Reports
-                </NavLink>
-              </li>
+              {othersLinks.map((link) => (
+                <li key={link.to}>
+                  <NavLink to={link.to} className={link.className}>
+                    {link.icon}
+                    {link.label}
+                  </NavLink>
+                </li>
+              ))}
             </ul>
           </div>
         </nav>

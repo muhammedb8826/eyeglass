@@ -46,6 +46,7 @@ import { OrdersReport } from "./components/reports/OrdersReport";
 import { PurchasesReport } from "./components/reports/PurchasesReport";
 import { StoreRequestsReport } from "./components/reports/StoreRequestsReport";
 import FixedCost from "./components/setting/FixedCost";
+import InAppNotifications from "./pages/InAppNotifications";
 
 const App = () => {
 
@@ -63,6 +64,7 @@ const App = () => {
           <Route path="order/:id" element={<OrderDetailsPage />} />
           <Route path="add-order" element={<OrderRegistration />} />
           <Route path="notifications/:id" element={<Notifications />} />
+          <Route path="in-app-notifications" element={<InAppNotifications />} />
           <Route path="purchase-notifications/:id" element={<PurchaseNotifications />} />
           <Route path="store-request-notifications/:id" element={<StoreRequestNotifications />} />
           <Route path="profile" element={<Profile />} />
