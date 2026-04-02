@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Header from '../components/header/Header';
 import Sidebar from '../components/Sidebar';
+import PermissionsBootstrap from '../components/PermissionsBootstrap';
 import { Outlet } from 'react-router-dom';
 
 const DefaultLayout = () => {
@@ -8,6 +9,7 @@ const DefaultLayout = () => {
 
   return (
     <div className="dark:bg-boxdark-2 dark:text-bodydark">
+      <PermissionsBootstrap />
       {/* <!-- ===== Page Wrapper Start ===== --> */}
       <div className="flex h-screen overflow-hidden">
         {/* <!-- ===== Sidebar Start ===== --> */}

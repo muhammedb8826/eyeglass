@@ -1,5 +1,6 @@
 import { configureStore, EnhancedStore } from "@reduxjs/toolkit";
 import { apiSlice } from "./api/apiSlice";
+import "./permissions/permissionsApiSlice";
 import userReducer from "./user/usersSlice";
 import authReducer, { setCredentials } from "./authSlice";
 import { UserType } from "@/types/UserType";

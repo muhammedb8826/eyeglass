@@ -47,6 +47,8 @@ import { PurchasesReport } from "./components/reports/PurchasesReport";
 import { StoreRequestsReport } from "./components/reports/StoreRequestsReport";
 import FixedCost from "./components/setting/FixedCost";
 import InAppNotifications from "./pages/InAppNotifications";
+import RequirePermission from "./components/RequirePermission";
+import { PERMISSION_NOTIFICATIONS_READ } from "./constants/permissions";
 
 const App = () => {
 
@@ -64,7 +66,14 @@ const App = () => {
           <Route path="order/:id" element={<OrderDetailsPage />} />
           <Route path="add-order" element={<OrderRegistration />} />
           <Route path="notifications/:id" element={<Notifications />} />
-          <Route path="in-app-notifications" element={<InAppNotifications />} />
+          <Route
+            path="in-app-notifications"
+            element={
+              <RequirePermission permission={PERMISSION_NOTIFICATIONS_READ}>
+                <InAppNotifications />
+              </RequirePermission>
+            }
+          />
           <Route path="purchase-notifications/:id" element={<PurchaseNotifications />} />
           <Route path="store-request-notifications/:id" element={<StoreRequestNotifications />} />
           <Route path="profile" element={<Profile />} />

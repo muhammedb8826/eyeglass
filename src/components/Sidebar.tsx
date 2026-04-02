@@ -1,10 +1,26 @@
 import React, { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import { useSelector } from "react-redux";
 import SidebarLinkGroup from "./SidebarLinkGroup";
 import { TbBell, TbBuildingWarehouse, TbFileReport } from "react-icons/tb";
 import { MdOutlineWarehouse, MdPeopleOutline } from "react-icons/md";
 import { LiaUsersCogSolid } from "react-icons/lia";
 import Logo from '../assets/images/logo/Logo.png';
+import {
+  selectCurrentUser,
+  selectPermissions,
+} from "@/redux/authSlice";
+import { PERMISSION_NOTIFICATIONS_READ } from "@/constants/permissions";
+import { userHasPermission } from "@/utils/permissions";
+
+type OthersLink = {
+  to: string;
+  label: string;
+  icon: React.ReactNode;
+  className: string;
+  /** If set, link is shown only when the user has this permission (ADMIN always). */
+  permission?: string;
+};
 
 interface SidebarProps {
   sidebarOpen: boolean;
@@ -14,6 +30,8 @@ interface SidebarProps {
 const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
   const location = useLocation();
   const { pathname } = location;
+  const user = useSelector(selectCurrentUser);
+  const permissions = useSelector(selectPermissions);
 
   const trigger = useRef<HTMLButtonElement>(null);
   const sidebar = useRef<HTMLElement>(null);
@@ -46,7 +64,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
     },
   ];
 
-  const othersLinks = [
+  const othersLinks: OthersLink[] = [
     {
       to: "/dashboard/users",
       label: "Users",
@@ -86,8 +104,15 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
       className: `group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${
         pathname.includes("in-app-notifications") && "bg-graydark dark:bg-meta-4"
       }`,
+      permission: PERMISSION_NOTIFICATIONS_READ,
     },
   ];
+
+  const visibleOthersLinks = othersLinks.filter(
+    (link) =>
+      !link.permission ||
+      userHasPermission(user, permissions, link.permission)
+  );
 
   // close on click outside
   useEffect(() => {
@@ -531,7 +556,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
             </h3>
 
             <ul className="mb-6 flex flex-col gap-1.5">
-              {othersLinks.map((link) => (
+              {visibleOthersLinks.map((link) => (
                 <li key={link.to}>
                   <NavLink to={link.to} className={link.className}>
                     {link.icon}

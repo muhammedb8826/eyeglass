@@ -3,6 +3,12 @@ import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { RootState } from "@/redux/store";
 import {
+  selectCurrentUser,
+  selectPermissions,
+} from "@/redux/authSlice";
+import { PERMISSION_NOTIFICATIONS_READ } from "@/constants/permissions";
+import { userHasPermission } from "@/utils/permissions";
+import {
   useGetNotificationsQuery,
   useGetUnreadCountQuery,
   useMarkAllNotificationsReadMutation,
@@ -11,9 +17,16 @@ import {
 
 const DropdownNotification = () => {
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
+  const user = useSelector(selectCurrentUser);
+  const permissions = useSelector(selectPermissions);
+  const canReadNotifications = userHasPermission(
+    user,
+    permissions,
+    PERMISSION_NOTIFICATIONS_READ
+  );
 
   const { data: unreadData } = useGetUnreadCountQuery(undefined, {
-    skip: !accessToken,
+    skip: !accessToken || !canReadNotifications,
     pollingInterval: 60_000,
     refetchOnFocus: true,
     refetchOnReconnect: true,
@@ -66,7 +79,7 @@ const DropdownNotification = () => {
     return () => document.removeEventListener("keydown", keyHandler);
   });
 
-  if (!accessToken) {
+  if (!accessToken || !canReadNotifications) {
     return null;
   }
 

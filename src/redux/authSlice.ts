@@ -7,6 +7,8 @@ interface AuthState {
     accessToken: string | null;
     refreshToken: string | null;
     isLoggedOut: boolean; // Add flag to track logout state
+    /** Codes from GET /permissions/me; null until loaded (or cleared on logout). */
+    permissions: string[] | null;
 }
 
 const initialState: AuthState = {
@@ -17,6 +19,7 @@ const initialState: AuthState = {
     accessToken: localStorage.getItem('accessToken') || null,
     refreshToken: localStorage.getItem('refreshToken') || null,
     isLoggedOut: false,
+    permissions: null,
 };
 
 const authSlice = createSlice({
@@ -29,9 +32,16 @@ const authSlice = createSlice({
             state.accessToken = accessToken;
             state.refreshToken = refreshToken;
             state.isLoggedOut = false; // Reset logout flag
+            state.permissions = null;
             localStorage.setItem('accessToken', accessToken);
             localStorage.setItem('refreshToken', refreshToken);
             localStorage.setItem('user', JSON.stringify(user));
+        },
+        setPermissions: (state, action: { payload: string[] }) => {
+            state.permissions = action.payload;
+        },
+        clearPermissions: (state) => {
+            state.permissions = null;
         },
         updateUser: (state, action: { payload: Partial<UserType> }) => {
             if (state.user) {
@@ -44,6 +54,7 @@ const authSlice = createSlice({
             state.accessToken = null;
             state.refreshToken = null;
             state.isLoggedOut = true; // Set logout flag
+            state.permissions = null;
             localStorage.removeItem('accessToken');
             localStorage.removeItem('refreshToken');
             localStorage.removeItem('user');
@@ -55,9 +66,10 @@ const authSlice = createSlice({
     }
 });
 
-export const { setCredentials, logOut, updateUser } = authSlice.actions;
+export const { setCredentials, logOut, updateUser, setPermissions, clearPermissions } = authSlice.actions;
 export default authSlice.reducer;
 
 export const selectCurrentUser = (state: RootState) => state.auth.user;
 export const selectCurrentToken = (state: RootState) => state.auth.accessToken;
 export const selectIsLoggedOut = (state: RootState) => state.auth.isLoggedOut;
+export const selectPermissions = (state: RootState) => state.auth.permissions;
