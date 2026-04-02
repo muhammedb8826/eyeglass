@@ -121,7 +121,10 @@ export const apiSlice = createApi({
         'Bincard',
         'LabTools',
         'Boms',
-        'Notifications'
+        'Notifications',
+        'PermissionsMe',
+        'PermissionsMatrix',
+        'PermissionsCatalog'
     ],
     endpoints: (builder) => ({
         signup: builder.mutation({

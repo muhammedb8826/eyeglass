@@ -15,3 +15,15 @@ export function userHasPermission(
   if (permissions === null) return false;
   return permissions.includes(code);
 }
+
+/** True if the user has at least one of the codes (ADMIN always). */
+export function userHasAnyPermission(
+  user: UserType | null,
+  permissions: string[] | null,
+  codes: string[]
+): boolean {
+  if (!user) return false;
+  if (user.roles === ADMIN_ROLE) return true;
+  if (permissions === null) return false;
+  return codes.some((c) => permissions.includes(c));
+}

@@ -3,14 +3,19 @@ import { Navigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import Loader from "@/common/Loader";
 import { RootState } from "@/redux/store";
-import { userHasPermission } from "@/utils/permissions";
+import { userHasAnyPermission, userHasPermission } from "@/utils/permissions";
+
+const FALLBACK_ROUTE = "/dashboard/profile";
 
 type RequirePermissionProps = {
-  permission: string;
   children: ReactNode;
-};
+} & (
+  | { permission: string; anyOf?: never }
+  | { anyOf: string[]; permission?: never }
+);
 
-const RequirePermission = ({ permission, children }: RequirePermissionProps) => {
+const RequirePermission = (props: RequirePermissionProps) => {
+  const { children } = props;
   const user = useSelector((s: RootState) => s.auth.user);
   const permissions = useSelector((s: RootState) => s.auth.permissions);
 
@@ -18,7 +23,12 @@ const RequirePermission = ({ permission, children }: RequirePermissionProps) => 
     return <Navigate to="/signin" replace />;
   }
 
-  if (userHasPermission(user, permissions, permission)) {
+  const allowed =
+    "permission" in props && props.permission
+      ? userHasPermission(user, permissions, props.permission)
+      : userHasAnyPermission(user, permissions, props.anyOf ?? []);
+
+  if (allowed) {
     return <>{children}</>;
   }
 
@@ -26,7 +36,7 @@ const RequirePermission = ({ permission, children }: RequirePermissionProps) => 
     return <Loader />;
   }
 
-  return <Navigate to="/dashboard" replace />;
+  return <Navigate to={FALLBACK_ROUTE} replace />;
 };
 
 export default RequirePermission;

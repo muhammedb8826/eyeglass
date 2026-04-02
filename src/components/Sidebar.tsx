@@ -10,15 +10,41 @@ import {
   selectCurrentUser,
   selectPermissions,
 } from "@/redux/authSlice";
-import { PERMISSION_NOTIFICATIONS_READ } from "@/constants/permissions";
-import { userHasPermission } from "@/utils/permissions";
+import {
+  PERMISSION_BINCARD_READ,
+  PERMISSION_BOM_READ,
+  PERMISSION_CUSTOMERS_READ,
+  PERMISSION_ITEMS_READ,
+  PERMISSION_LAB_TOOL_READ,
+  PERMISSION_MASTER_READ,
+  PERMISSION_ORDERS_READ,
+  PERMISSION_PERMISSIONS_MANAGE,
+  PERMISSION_PRICING_READ,
+  PERMISSION_PURCHASES_READ,
+  PERMISSION_SALES_READ,
+  PERMISSION_USERS_MANAGE,
+  PERMISSION_VENDORS_READ,
+} from "@/constants/permissions";
+import { userHasAnyPermission, userHasPermission } from "@/utils/permissions";
 
 type OthersLink = {
   to: string;
   label: string;
   icon: React.ReactNode;
   className: string;
-  /** If set, link is shown only when the user has this permission (ADMIN always). */
+  permission?: string;
+  anyOf?: string[];
+};
+
+type InventorySubLink = {
+  to: string;
+  label: string;
+  permission: string;
+};
+
+type SettingsSubLink = {
+  to: string;
+  label: string;
   permission?: string;
 };
 
@@ -41,28 +67,71 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
     storedSidebarExpanded === null ? false : storedSidebarExpanded === "true"
   );
 
-  const inventorySubLinks = [
-    { to: "/dashboard/inventory/stock", label: "Stock" },
-    { to: "/dashboard/inventory/store-request", label: "Store Request" },
-    { to: "/dashboard/inventory/purchases", label: "Purchases" },
-    { to: "/dashboard/inventory/machines", label: "Machines" },
-    { to: "/dashboard/inventory/lab-tools", label: "Lab Tools" },
-    { to: "/dashboard/inventory/boms", label: "BOM" },
-    // Services and Operator Stock removed per request
-    { to: "/dashboard/inventory/items", label: "Items" },
+  const inventorySubLinks: InventorySubLink[] = [
+    {
+      to: "/dashboard/inventory/stock",
+      label: "Stock",
+      permission: PERMISSION_BINCARD_READ,
+    },
+    {
+      to: "/dashboard/inventory/store-request",
+      label: "Store Request",
+      permission: PERMISSION_SALES_READ,
+    },
+    {
+      to: "/dashboard/inventory/purchases",
+      label: "Purchases",
+      permission: PERMISSION_PURCHASES_READ,
+    },
+    {
+      to: "/dashboard/inventory/machines",
+      label: "Machines",
+      permission: PERMISSION_MASTER_READ,
+    },
+    {
+      to: "/dashboard/inventory/lab-tools",
+      label: "Lab Tools",
+      permission: PERMISSION_LAB_TOOL_READ,
+    },
+    {
+      to: "/dashboard/inventory/boms",
+      label: "BOM",
+      permission: PERMISSION_BOM_READ,
+    },
+    {
+      to: "/dashboard/inventory/items",
+      label: "Items",
+      permission: PERMISSION_ITEMS_READ,
+    },
   ];
 
-  const settingsSubLinks = [
-    // Assign Machines, Fixed Cost, Discounts removed per request
+  const visibleInventorySubLinks = inventorySubLinks.filter((link) =>
+    userHasPermission(user, permissions, link.permission)
+  );
+
+  const settingsSubLinks: SettingsSubLink[] = [
     {
       to: "/dashboard/settings/unit-category",
       label: "Units",
+      permission: PERMISSION_MASTER_READ,
     },
     {
       to: "/dashboard/settings/pricings",
       label: "Pricings",
+      permission: PERMISSION_PRICING_READ,
+    },
+    {
+      to: "/dashboard/settings/permissions",
+      label: "Permissions",
+      permission: PERMISSION_PERMISSIONS_MANAGE,
     },
   ];
+
+  const visibleSettingsSubLinks = settingsSubLinks.filter(
+    (link) =>
+      !link.permission ||
+      userHasPermission(user, permissions, link.permission)
+  );
 
   const othersLinks: OthersLink[] = [
     {
@@ -72,30 +141,38 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
       className: `group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${
         pathname.includes("user") && "bg-graydark dark:bg-meta-4"
       }`,
+      permission: PERMISSION_USERS_MANAGE,
     },
     {
       to: "/dashboard/inventory/vendors",
       label: "Vendors",
       icon: <TbBuildingWarehouse />,
       className: `group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${
-        pathname.includes("chart") && "bg-graydark dark:bg-meta-4"
+        pathname.includes("vendors") && "bg-graydark dark:bg-meta-4"
       }`,
+      permission: PERMISSION_VENDORS_READ,
     },
     {
       to: "/dashboard/customers",
       label: "Customers",
       icon: <MdPeopleOutline />,
       className: `group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${
-        pathname.includes("chart") && "bg-graydark dark:bg-meta-4"
+        pathname.includes("customers") && "bg-graydark dark:bg-meta-4"
       }`,
+      permission: PERMISSION_CUSTOMERS_READ,
     },
     {
       to: "/dashboard/reports",
       label: "Reports",
       icon: <TbFileReport />,
       className: `group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${
-        pathname.includes("user") && "bg-graydark dark:bg-meta-4"
+        pathname.includes("reports") && "bg-graydark dark:bg-meta-4"
       }`,
+      anyOf: [
+        PERMISSION_ORDERS_READ,
+        PERMISSION_PURCHASES_READ,
+        PERMISSION_SALES_READ,
+      ],
     },
     {
       to: "/dashboard/in-app-notifications",
@@ -104,15 +181,18 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
       className: `group relative flex items-center gap-2.5 rounded-sm py-2 px-4 font-medium text-bodydark1 duration-300 ease-in-out hover:bg-graydark dark:hover:bg-meta-4 ${
         pathname.includes("in-app-notifications") && "bg-graydark dark:bg-meta-4"
       }`,
-      permission: PERMISSION_NOTIFICATIONS_READ,
     },
   ];
 
-  const visibleOthersLinks = othersLinks.filter(
-    (link) =>
-      !link.permission ||
-      userHasPermission(user, permissions, link.permission)
-  );
+  const visibleOthersLinks = othersLinks.filter((link) => {
+    if (link.anyOf?.length) {
+      return userHasAnyPermission(user, permissions, link.anyOf);
+    }
+    if (link.permission) {
+      return userHasPermission(user, permissions, link.permission);
+    }
+    return true;
+  });
 
   // close on click outside
   useEffect(() => {
@@ -197,7 +277,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
 
             <ul className="mb-6 flex flex-col gap-1.5">
 
-              {/* <!-- Menu Item Dashboard --> */}
+              {userHasPermission(user, permissions, PERMISSION_ORDERS_READ) && (
               <SidebarLinkGroup
                 activeCondition={
                   pathname === "" || pathname.includes("dashboard")
@@ -286,8 +366,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                   );
                 }}
               </SidebarLinkGroup>
-
-
+              )}
 
               {/* <!-- Menu Item Dashboard --> */}
               <SidebarLinkGroup
@@ -379,7 +458,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                 }}
               </SidebarLinkGroup>
 
-              {/* <!-- Menu Item Forms --> */}
+              {visibleInventorySubLinks.length > 0 && (
               <SidebarLinkGroup
                 activeCondition={
                   pathname === "/inventory" || pathname.includes("inventory")
@@ -426,7 +505,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                           }`}
                       >
                         <ul className="mt-4 mb-5.5 flex flex-col gap-2.5 pl-6">
-                          {inventorySubLinks.map((link) => (
+                          {visibleInventorySubLinks.map((link) => (
                             <li key={link.to}>
                               <NavLink
                                 to={link.to}
@@ -446,11 +525,9 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                   );
                 }}
               </SidebarLinkGroup>
-              {/* <!-- Menu Item Forms --> */}
+              )}
 
-
-
-
+              {visibleSettingsSubLinks.length > 0 && (
               <SidebarLinkGroup
                 activeCondition={
                   pathname === "/settings" || pathname.includes("settings")
@@ -525,7 +602,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                           }`}
                       >
                         <ul className="mt-4 mb-5.5 flex flex-col gap-2.5 pl-6">
-                          {settingsSubLinks.map((link) => (
+                          {visibleSettingsSubLinks.map((link) => (
                             <li key={link.to}>
                               <NavLink
                                 to={link.to}
@@ -545,7 +622,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
                   );
                 }}
               </SidebarLinkGroup>
-              {/* <!-- Menu Item Settings --> */}
+              )}
             </ul>
           </div>
 
