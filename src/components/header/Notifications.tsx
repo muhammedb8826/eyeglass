@@ -297,6 +297,13 @@ export const Notifications = () => {
             handleAction(index);
             return;
           }
+          if (itemToUpdate.storeRequestStatus !== "Issued") {
+            toast.error(
+              "Start production is blocked until the store has issued materials (store request must be Issued).",
+            );
+            handleAction(index);
+            return;
+          }
         }
         payload = { ...base, status };
       }

@@ -15,9 +15,11 @@ interface SelectUomProps {
   labelMargin: string;
   border: string
   title: string
+  /** When true, the control is read-only (e.g. locked order line). */
+  isDisabled?: boolean;
 }
 
-const SelectOptions: React.FC<SelectUomProps> = ({ options, defaultOptionText = 'Select your subject', selectedOption, onOptionChange, containerMargin, labelMargin, border, title }) => {
+const SelectOptions: React.FC<SelectUomProps> = ({ options, defaultOptionText = 'Select your subject', selectedOption, onOptionChange, containerMargin, labelMargin, border, title, isDisabled = false }) => {
   const value = options.find((o) => o.value === selectedOption) || null;
   const portalTarget = typeof window !== 'undefined' ? document.body : null;
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
@@ -64,6 +66,7 @@ const SelectOptions: React.FC<SelectUomProps> = ({ options, defaultOptionText = 
       <div className={`relative z-20 bg-transparent dark:bg-form-input ${border}`}>
         <Select<Option, false>
           inputId={title}
+          isDisabled={isDisabled}
           isSearchable
           isClearable
           classNamePrefix="rs"

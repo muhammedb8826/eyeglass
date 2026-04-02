@@ -1,6 +1,6 @@
 import ErroPage from "../common/ErroPage";
 import { Link, useParams } from "react-router-dom";
-import { useEffect, useMemo, useRef, useState, Fragment } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
 import CustomerSearchInput from "../customer/CustomerSearchInput";
@@ -167,6 +167,9 @@ const tabs = [
   { id: "other-information", label: "Other information" },
 ];
 
+const LINE_CONTENT_LOCKED_MSG =
+  "This line is locked: prescription, lens, quantity, pricing, and item/base cannot be changed after approval, during production, or while the order is in progress.";
+
 export const OrderDetailsPage = () => {
   const user = useSelector(selectCurrentUser);
   const { id } = useParams();
@@ -293,6 +296,21 @@ export const OrderDetailsPage = () => {
   const handleTabChange = (id: string) => {
     setActiveTabId(id);
   };
+
+  const isOrderItemContentEditingLocked = useCallback(
+    (row: OrderItemType) => {
+      const os = orderInfo.status || "";
+      if (os === "InProgress" || os === "Ready") return true;
+      if (row.approvalStatus === "Approved") return true;
+      const st = row.status || "";
+      if (st === "InProgress" || st === "Ready") return true;
+      return false;
+    },
+    [orderInfo.status],
+  );
+
+  const isOrderAddingProductLinesBlocked =
+    orderInfo.status === "InProgress" || orderInfo.status === "Ready";
 
   useEffect(() => {
     if (order) {
@@ -549,6 +567,12 @@ export const OrderDetailsPage = () => {
   };
 
   const handleAddRow = () => {
+    if (isOrderAddingProductLinesBlocked) {
+      toast.error(
+        "Cannot add product lines while the order is in production or ready for dispatch.",
+      );
+      return;
+    }
     setFormData((prevFormData) => [
       ...prevFormData,
       {
@@ -665,12 +689,8 @@ export const OrderDetailsPage = () => {
 
   const handleItemChange = (index: number, value: string) => {
     const item = formData[index];
-
-    // Prevent changes if the item is in an approved state
-    if (
-      item.status !== "Pending"
-    ) {
-      toast.error("You cannot edit this item because it has been approved");
+    if (isOrderItemContentEditingLocked(item)) {
+      toast.error(LINE_CONTENT_LOCKED_MSG);
       return;
     }
 
@@ -826,10 +846,8 @@ export const OrderDetailsPage = () => {
 
   const handleUnitChange = (index: number, value: string) => {
     const item = formData[index];
-    if (
-      item.status !== "Pending"
-    ) {
-      toast.error("You cannot edit this item because it has been approved");
+    if (isOrderItemContentEditingLocked(item)) {
+      toast.error(LINE_CONTENT_LOCKED_MSG);
       return;
     }
     setFormData((prevFormData) => {
@@ -889,10 +907,8 @@ export const OrderDetailsPage = () => {
 
   const handleQuantityChange = (index: number, value: string) => {
     const item = formData[index];
-    if (
-      item.status !== "Pending"
-    ) {
-      toast.error("You cannot edit this item because it has been approved");
+    if (isOrderItemContentEditingLocked(item)) {
+      toast.error(LINE_CONTENT_LOCKED_MSG);
       return;
     }
     const quantity = value || "";
@@ -970,6 +986,11 @@ export const OrderDetailsPage = () => {
     side: 'quantityRight' | 'quantityLeft',
     value: string,
   ) => {
+    const row = formData[index];
+    if (row && isOrderItemContentEditingLocked(row)) {
+      toast.error(LINE_CONTENT_LOCKED_MSG);
+      return;
+    }
     const num = value === '' ? undefined : parseFloat(value);
     if (num !== undefined && Number.isNaN(num)) return;
 
@@ -999,6 +1020,10 @@ export const OrderDetailsPage = () => {
     delta: number,
   ) => {
     const row = formData[index];
+    if (row && isOrderItemContentEditingLocked(row)) {
+      toast.error(LINE_CONTENT_LOCKED_MSG);
+      return;
+    }
     const legacyR = parseFloat(row.quantity?.toString() || '0') || 0;
     const current = side === 'quantityRight'
       ? (row.quantityRight ?? legacyR)
@@ -1013,6 +1038,10 @@ export const OrderDetailsPage = () => {
     field: keyof OrderItemType,
     value: string,
   ) => {
+    if (isOrderItemContentEditingLocked(formData[index])) {
+      toast.error(LINE_CONTENT_LOCKED_MSG);
+      return;
+    }
     setFormData((prevFormData) => {
       const updatedFormData = [...prevFormData];
       updatedFormData[index] = {
@@ -1028,6 +1057,10 @@ export const OrderDetailsPage = () => {
     field: keyof OrderItemType,
     value: string,
   ) => {
+    if (isOrderItemContentEditingLocked(formData[index])) {
+      toast.error(LINE_CONTENT_LOCKED_MSG);
+      return;
+    }
     setFormData((prevFormData) => {
       const updatedFormData = [...prevFormData];
       updatedFormData[index] = {
@@ -1043,6 +1076,10 @@ export const OrderDetailsPage = () => {
     field: keyof RxCalcRow,
     value: string,
   ) => {
+    if (isOrderItemContentEditingLocked(formData[index])) {
+      toast.error(LINE_CONTENT_LOCKED_MSG);
+      return;
+    }
     setRxCalcRows((prev) => {
       const next = [...prev];
       next[index] = {
@@ -1111,10 +1148,8 @@ export const OrderDetailsPage = () => {
 
   const handleCancel = (index: number) => {
     const item = formData[index];
-    if (
-      item.status !== "Pending"
-    ) {
-      toast.error("You cannot cancel this item because it has been approved");
+    if (isOrderItemContentEditingLocked(item)) {
+      toast.error(LINE_CONTENT_LOCKED_MSG);
       return;
     }
     const updatedFormData = [...formData];
@@ -1198,6 +1233,10 @@ export const OrderDetailsPage = () => {
   ) => {
     if (user?.roles !== "ADMIN") {
       toast.error("You are not authorized to perform this action");
+      return;
+    }
+    if (isOrderItemContentEditingLocked(formData[index])) {
+      toast.error(LINE_CONTENT_LOCKED_MSG);
       return;
     }
     const { checked } = e.target;
@@ -1381,10 +1420,17 @@ export const OrderDetailsPage = () => {
         status: newStatus,
       };
 
-      // Frontend only enforces approval; backend enforces storeRequestStatus === "Issued"
-      if (newStatus === "InProgress" && item.approvalStatus !== "Approved") {
-        toast.error("This line must be approved before starting production.");
-        return;
+      if (newStatus === "InProgress") {
+        if (item.approvalStatus !== "Approved") {
+          toast.error("This line must be approved before starting production.");
+          return;
+        }
+        if (item.storeRequestStatus !== "Issued") {
+          toast.error(
+            "Start production is blocked until the store has issued materials (store request must be Issued).",
+          );
+          return;
+        }
       }
 
       await updateOrderItem(payload).unwrap();
@@ -1526,6 +1572,22 @@ export const OrderDetailsPage = () => {
 
     // Prepare order items
     const ordeItemData = formData.map((data) => {
+      if (isOrderItemContentEditingLocked(data)) {
+        const workflowOnly: Record<string, unknown> = {
+          id: data.id,
+          orderId: order?.id,
+          status: data.status,
+          approvalStatus: data.approvalStatus,
+          qualityControlStatus: data.qualityControlStatus,
+          storeRequestStatus: data.storeRequestStatus,
+          adminApproval: data.adminApproval,
+        };
+        if (data.operatorId) {
+          workflowOnly.operatorId = data.operatorId;
+        }
+        return workflowOnly as unknown as OrderItemType;
+      }
+
       // Check if the service is a non-stock service
       const isNonStockService = nonStockServices?.some(service => service.id === data.serviceId);
 
@@ -1993,7 +2055,9 @@ export const OrderDetailsPage = () => {
                               </tr>
                             )}
                             {formData &&
-                              updatedFormData.map((data, index) => (
+                              updatedFormData.map((data, index) => {
+                              const lineLocked = isOrderItemContentEditingLocked(formData[index]);
+                              return (
                               <Fragment key={index}>
                                 <tr>
                                   <td className="border-b text-graydark dark:text-white border-stroke py-2 px-4 dark:border-strokedark">
@@ -2011,6 +2075,7 @@ export const OrderDetailsPage = () => {
                                       labelMargin=""
                                       border=""
                                       title="Select item"
+                                      isDisabled={lineLocked}
                                     />
                                   </td>
                                   <td className="min-w-[220px] relative border border-stroke dark:border-strokedark">
@@ -2032,6 +2097,7 @@ export const OrderDetailsPage = () => {
                                       labelMargin=""
                                       border=""
                                       title="Select units"
+                                      isDisabled={lineLocked}
                                     />
                                   </td>
                                   <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark whitespace-nowrap">
@@ -2041,8 +2107,9 @@ export const OrderDetailsPage = () => {
                                         <button
                                           type="button"
                                           title="Decrease right quantity"
+                                          disabled={lineLocked}
                                           onClick={() => handleQuantityPerEyeStep(index, 'quantityRight', -1)}
-                                          className="flex h-8 w-7 shrink-0 items-center justify-center rounded border border-stroke bg-gray-100 text-sm font-medium hover:bg-gray-200 dark:border-strokedark dark:bg-meta-4 dark:hover:bg-meta-3"
+                                          className="flex h-8 w-7 shrink-0 items-center justify-center rounded border border-stroke bg-gray-100 text-sm font-medium hover:bg-gray-200 dark:border-strokedark dark:bg-meta-4 dark:hover:bg-meta-3 disabled:opacity-50"
                                         >
                                           −
                                         </button>
@@ -2050,17 +2117,19 @@ export const OrderDetailsPage = () => {
                                           title="Quantity right eye"
                                           type="number"
                                           min={0}
+                                          disabled={lineLocked}
                                           value={data.quantityRight ?? data.quantity ?? ''}
                                           onChange={(e) =>
                                             handleQuantityPerEyeChange(index, 'quantityRight', e.target.value)
                                           }
-                                          className="h-8 w-10 rounded border border-stroke bg-transparent px-0.5 text-center text-sm font-medium outline-none transition focus:border-primary dark:border-strokedark dark:bg-form-input dark:text-white"
+                                          className="h-8 w-10 rounded border border-stroke bg-transparent px-0.5 text-center text-sm font-medium outline-none transition focus:border-primary dark:border-strokedark dark:bg-form-input dark:text-white disabled:opacity-50"
                                         />
                                         <button
                                           type="button"
                                           title="Increase right quantity"
+                                          disabled={lineLocked}
                                           onClick={() => handleQuantityPerEyeStep(index, 'quantityRight', 1)}
-                                          className="flex h-8 w-7 shrink-0 items-center justify-center rounded border border-stroke bg-gray-100 text-sm font-medium hover:bg-gray-200 dark:border-strokedark dark:bg-meta-4 dark:hover:bg-meta-3"
+                                          className="flex h-8 w-7 shrink-0 items-center justify-center rounded border border-stroke bg-gray-100 text-sm font-medium hover:bg-gray-200 dark:border-strokedark dark:bg-meta-4 dark:hover:bg-meta-3 disabled:opacity-50"
                                         >
                                           +
                                         </button>
@@ -2070,8 +2139,9 @@ export const OrderDetailsPage = () => {
                                         <button
                                           type="button"
                                           title="Decrease left quantity"
+                                          disabled={lineLocked}
                                           onClick={() => handleQuantityPerEyeStep(index, 'quantityLeft', -1)}
-                                          className="flex h-8 w-7 shrink-0 items-center justify-center rounded border border-stroke bg-gray-100 text-sm font-medium hover:bg-gray-200 dark:border-strokedark dark:bg-meta-4 dark:hover:bg-meta-3"
+                                          className="flex h-8 w-7 shrink-0 items-center justify-center rounded border border-stroke bg-gray-100 text-sm font-medium hover:bg-gray-200 dark:border-strokedark dark:bg-meta-4 dark:hover:bg-meta-3 disabled:opacity-50"
                                         >
                                           −
                                         </button>
@@ -2079,17 +2149,19 @@ export const OrderDetailsPage = () => {
                                           title="Quantity left eye"
                                           type="number"
                                           min={0}
+                                          disabled={lineLocked}
                                           value={data.quantityLeft ?? ''}
                                           onChange={(e) =>
                                             handleQuantityPerEyeChange(index, 'quantityLeft', e.target.value)
                                           }
-                                          className="h-8 w-10 rounded border border-stroke bg-transparent px-0.5 text-center text-sm font-medium outline-none transition focus:border-primary dark:border-strokedark dark:bg-form-input dark:text-white"
+                                          className="h-8 w-10 rounded border border-stroke bg-transparent px-0.5 text-center text-sm font-medium outline-none transition focus:border-primary dark:border-strokedark dark:bg-form-input dark:text-white disabled:opacity-50"
                                         />
                                         <button
                                           type="button"
                                           title="Increase left quantity"
+                                          disabled={lineLocked}
                                           onClick={() => handleQuantityPerEyeStep(index, 'quantityLeft', 1)}
-                                          className="flex h-8 w-7 shrink-0 items-center justify-center rounded border border-stroke bg-gray-100 text-sm font-medium hover:bg-gray-200 dark:border-strokedark dark:bg-meta-4 dark:hover:bg-meta-3"
+                                          className="flex h-8 w-7 shrink-0 items-center justify-center rounded border border-stroke bg-gray-100 text-sm font-medium hover:bg-gray-200 dark:border-strokedark dark:bg-meta-4 dark:hover:bg-meta-3 disabled:opacity-50"
                                         >
                                           +
                                         </button>
@@ -2103,10 +2175,11 @@ export const OrderDetailsPage = () => {
                                           value={data.quantity}
                                           min={0}
                                           required
+                                          disabled={lineLocked}
                                           onChange={(e) =>
                                             handleQuantityChange(index, e.target.value)
                                           }
-                                          className="h-8 w-10 rounded border border-stroke bg-transparent px-0.5 text-center text-sm font-medium outline-none transition focus:border-primary dark:border-strokedark dark:bg-form-input dark:text-white"
+                                          className="h-8 w-10 rounded border border-stroke bg-transparent px-0.5 text-center text-sm font-medium outline-none transition focus:border-primary dark:border-strokedark dark:bg-form-input dark:text-white disabled:opacity-50"
                                         />
                                       </div>
                                     </div>
@@ -2117,12 +2190,21 @@ export const OrderDetailsPage = () => {
                                   <td className="py-2 border-b text-graydark dark:text-white border-stroke dark:border-strokedark">
                                     <button
                                       type="button"
+                                      title={
+                                        lineLocked
+                                          ? "View prescription and lens details (read-only)"
+                                          : undefined
+                                      }
                                       className="rounded border border-stroke px-2 py-1 text-xs font-medium hover:bg-gray-100 dark:hover:bg-gray-700"
                                       onClick={() =>
                                         setActiveRxRow((prev) => (prev === index ? null : index))
                                       }
                                     >
-                                      {activeRxRow === index ? "Hide Rx" : "Edit Rx"}
+                                      {activeRxRow === index
+                                        ? "Hide Rx"
+                                        : lineLocked
+                                          ? "View Rx"
+                                          : "Edit Rx"}
                                     </button>
                                   </td>
                                   <td className="px-4 py-2 border border-stroke dark:border-strokedark">
@@ -2223,7 +2305,15 @@ export const OrderDetailsPage = () => {
                                               <button
                                                 onClick={() => handleUpdateItemStatus(index, "InProgress")}
                                                 type="button"
-                                                disabled={isUpdatingItem}
+                                                disabled={
+                                                  isUpdatingItem ||
+                                                  formData[index]?.storeRequestStatus !== "Issued"
+                                                }
+                                                title={
+                                                  formData[index]?.storeRequestStatus !== "Issued"
+                                                    ? "Store must issue materials first (store request Issued)."
+                                                    : undefined
+                                                }
                                                 className="flex items-center gap-3 text-sm font-medium px-3 py-2 rounded-md duration-300 ease-in-out hover:bg-gray-100 dark:hover:bg-meta-4 hover:text-primary lg:text-base w-full text-left disabled:opacity-50"
                                               >
                                                 <FaPrint className="text-lg" />
@@ -2326,6 +2416,15 @@ export const OrderDetailsPage = () => {
                                     colSpan={8}
                                     className="bg-gray-50 dark:bg-boxdark p-4 border border-t-0 border-stroke dark:border-strokedark"
                                   >
+                                    <fieldset
+                                      disabled={lineLocked}
+                                      className="min-w-0 border-0 p-0 m-0 disabled:[&_input]:cursor-default disabled:[&_select]:cursor-default"
+                                    >
+                                    {lineLocked && (
+                                      <p className="mb-3 text-xs font-medium text-body dark:text-bodydark">
+                                        Prescription and lens fields are read-only for this line.
+                                      </p>
+                                    )}
                                     <div className="grid gap-4 md:grid-cols-4">
                                       <div>
                                         <p className="mb-2 text-xs font-semibold text-black dark:text-white">
@@ -2718,11 +2817,12 @@ export const OrderDetailsPage = () => {
                                         </div>
                                       </div>
                                     </div>
+                                    </fieldset>
                                   </td>
                                 </tr>
                               )}
                               </Fragment>
-                            ))}
+                            );})}
                           </tbody>
                         </table>
                       </div>

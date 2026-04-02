@@ -41,7 +41,8 @@ export const saleApiSlice = apiSlice.injectEndpoints({
                 method: 'POST',
                 body: formData
             }),
-            invalidatesTags: ['Sales']
+            // Store sales update linked order lines (e.g. storeRequestStatus → Issued)
+            invalidatesTags: ['Sales', 'Orders']
         }),
         updateSale: builder.mutation({
             query: (formData) => ({
@@ -49,14 +50,21 @@ export const saleApiSlice = apiSlice.injectEndpoints({
                 method: 'PATCH',
                 body: formData
             }),
-            invalidatesTags: (_result, _error, formData) => [{ type: 'Sales', id: formData.id }]
+            invalidatesTags: (_result, _error, formData) => [
+                { type: 'Sales', id: formData.id },
+                'Orders',
+            ]
         }),
         deleteSale: builder.mutation({
             query: (id) => ({
                 url: `/sales/${id}`,
                 method: 'DELETE'
             }),
-            invalidatesTags: (_result, _error, id) => [{ type: 'Sales', id }, { type: 'Sales', id: 'LIST' }]
+            invalidatesTags: (_result, _error, id) => [
+                { type: 'Sales', id },
+                { type: 'Sales', id: 'LIST' },
+                'Orders',
+            ]
         }),
         getSaleItems: builder.query<SaleItem[], string>({
             query: (saleId) => ({
@@ -71,7 +79,7 @@ export const saleApiSlice = apiSlice.injectEndpoints({
                 method: 'POST',
                 body: formData
             }),
-            invalidatesTags: ['Sales']
+            invalidatesTags: ['Sales', 'Orders']
         }),
         updateSaleItem: builder.mutation({
             query: (formData) => ({
@@ -79,14 +87,21 @@ export const saleApiSlice = apiSlice.injectEndpoints({
                 method: 'PATCH',
                 body: formData
             }),
-            invalidatesTags: (_result, _error, formData) => [{ type: 'Sales', id: formData.id }]
+            invalidatesTags: (_result, _error, formData) => [
+                { type: 'Sales', id: formData.id },
+                'Orders',
+            ]
         }),
         deleteSaleItem: builder.mutation<SaleItem, string>({
             query: (itemId) => ({
                 url: `/sale-items/${itemId}`,
                 method: 'DELETE'
             }),
-            invalidatesTags: (_result, _error, itemId) => [{ type: 'Sales', id: itemId }, { type: 'Sales', id: 'LIST' }]
+            invalidatesTags: (_result, _error, itemId) => [
+                { type: 'Sales', id: itemId },
+                { type: 'Sales', id: 'LIST' },
+                'Orders',
+            ]
         }),
         getSaleItemNotes: builder.query<SaleItemNoteType[], string>({
             query: (saleItemId) => ({
@@ -122,7 +137,10 @@ export const saleApiSlice = apiSlice.injectEndpoints({
                 url: `/sale-item-notes/note/${id}`,
                 method: 'DELETE'
             }),
-            invalidatesTags: (_result, _error, noteId) => [{ type: 'Sales', id: noteId }, { type: 'Sales', id: 'LIST' }]
+            invalidatesTags: (_result, _error, noteId) => [
+                { type: 'Sales', id: noteId },
+                { type: 'Sales', id: 'LIST' },
+            ]
         }),
     }),
 });
