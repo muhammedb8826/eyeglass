@@ -24,7 +24,13 @@ import Tabs from "@/common/TabComponent";
 import { SalesPartnerType } from "@/types/SalesPartnerType";
 import SelectOptions from "@/common/SelectOptions";
 import { useSelector } from "react-redux";
-import { selectCurrentUser } from "@/redux/authSlice";
+import { selectCurrentUser, selectPermissions } from "@/redux/authSlice";
+import { userHasPermission } from "@/utils/permissions";
+import {
+  PERMISSION_FINANCE_READ,
+  PERMISSION_FINANCE_WRITE,
+  PERMISSION_QUALITY_CONTROL_WRITE,
+} from "@/constants/permissions";
 import { useGetAllPricingsQuery } from "@/redux/pricing/pricingApiSlice";
 import { useGetAllServicesQuery } from "@/redux/services/servicesApiSlice";
 import { useGetAllNonStockServicesQuery } from "@/redux/services/nonStockServicesApiSlice";
@@ -171,6 +177,7 @@ const LINE_CONTENT_LOCKED_MSG =
 
 export const OrderDetailsPage = () => {
   const user = useSelector(selectCurrentUser);
+  const permissions = useSelector(selectPermissions);
   const { id } = useParams();
   const {
     data: order,
@@ -454,7 +461,7 @@ export const OrderDetailsPage = () => {
     index: number,
     e: React.ChangeEvent<HTMLSelectElement>
   ) => {
-    if (user?.roles !== "ADMIN" && user?.roles !== "FINANCE") {
+    if (!userHasPermission(user, permissions, PERMISSION_FINANCE_READ)) {
       toast.error("You are not authorized to perform this action");
       return;
     }
@@ -473,7 +480,7 @@ export const OrderDetailsPage = () => {
     index: number,
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
-    if (user?.roles !== "ADMIN" && user?.roles !== "FINANCE") {
+    if (!userHasPermission(user, permissions, PERMISSION_FINANCE_READ)) {
       toast.error("You are not authorized to perform this action");
       return;
     }
@@ -508,7 +515,7 @@ export const OrderDetailsPage = () => {
     index: number,
     e: React.ChangeEvent<HTMLSelectElement>
   ) => {
-    if (user?.roles !== "ADMIN" && user?.roles !== "FINANCE") {
+    if (!userHasPermission(user, permissions, PERMISSION_FINANCE_READ)) {
       toast.error("You are not authorized to perform this action");
       return;
     }
@@ -547,7 +554,7 @@ export const OrderDetailsPage = () => {
   };
 
   const handleAddPaymentRow = () => {
-    if (user?.roles !== "ADMIN" && user?.roles !== "FINANCE") {
+    if (!userHasPermission(user, permissions, PERMISSION_FINANCE_READ)) {
       toast.error("You are not authorized to perform this action");
       return;
     }
@@ -642,7 +649,7 @@ export const OrderDetailsPage = () => {
   };
 
   const handleChangeForcePayment = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (user?.roles !== "ADMIN" && user?.roles !== "FINANCE") {
+    if (!userHasPermission(user, permissions, PERMISSION_FINANCE_READ)) {
       toast.error("You are not authorized to perform this action");
       return;
     }
@@ -1161,7 +1168,7 @@ export const OrderDetailsPage = () => {
   };
 
   const handleCancelPayment = (index: number) => {
-    if (user?.roles !== "ADMIN" && user?.roles !== "FINANCE") {
+    if (!userHasPermission(user, permissions, PERMISSION_FINANCE_READ)) {
       toast.error("You are not authorized to perform this action");
       return;
     }
@@ -1217,7 +1224,7 @@ export const OrderDetailsPage = () => {
   ]);
 
   const handleUserInputDiscount = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (user?.roles !== "ADMIN") {
+    if (!userHasPermission(user, permissions, PERMISSION_FINANCE_WRITE)) {
       toast.error("You are not authorized to perform this action");
       return;
     }
@@ -1230,7 +1237,7 @@ export const OrderDetailsPage = () => {
     index: number,
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
-    if (user?.roles !== "ADMIN") {
+    if (!userHasPermission(user, permissions, PERMISSION_FINANCE_WRITE)) {
       toast.error("You are not authorized to perform this action");
       return;
     }
@@ -1452,7 +1459,11 @@ export const OrderDetailsPage = () => {
     }
   };
 
-  const canPerformQc = ["ADMIN", "LAB_TECHNICIAN"].includes(user?.roles || "");
+  const canPerformQc = userHasPermission(
+    user,
+    permissions,
+    PERMISSION_QUALITY_CONTROL_WRITE
+  );
 
   const handleQcPassLine = async (index: number) => {
     const item = formData[index];
@@ -2845,7 +2856,7 @@ export const OrderDetailsPage = () => {
               {activeTabId === "payment-terms" && (
                 <div
                   className={`${
-                    user?.roles !== "ADMIN" && user?.roles !== "FINANCE"
+                    !userHasPermission(user, permissions, PERMISSION_FINANCE_READ)
                       ? "hidden"
                       : ""
                   }`}
@@ -3092,7 +3103,7 @@ export const OrderDetailsPage = () => {
               {activeTabId === "commissions" && (
                 <div
                   className={`${
-                    user?.roles !== "ADMIN" && user?.roles !== "FINANCE"
+                    !userHasPermission(user, permissions, PERMISSION_FINANCE_READ)
                       ? "hidden"
                       : ""
                   }`}
@@ -3279,7 +3290,7 @@ export const OrderDetailsPage = () => {
 
               {activeTabId === "other-information" && (
                 <>
-                  {user?.roles === "ADMIN" && (
+                  {userHasPermission(user, permissions, PERMISSION_FINANCE_WRITE) && (
                     <>
                       <div className="max-w-full overflow-x-auto px-4">
                         <table className="w-full table-auto">

@@ -9,7 +9,9 @@ import { CiMenuKebab } from "react-icons/ci";
 import Swal from "sweetalert2";
 import Loader from "@/common/Loader";
 import Breadcrumb from "../Breadcrumb";
-import { selectCurrentUser } from "@/redux/authSlice";
+import { selectCurrentUser, selectPermissions } from "@/redux/authSlice";
+import { userHasPermission } from "@/utils/permissions";
+import { PERMISSION_ORDERS_WRITE } from "@/constants/permissions";
 import {
   useDeleteOrderMutation,
   useGetOrdersQuery,
@@ -38,6 +40,7 @@ const fieldInput =
 
 const OrdersList = () => {
   const user = useSelector(selectCurrentUser);
+  const permissions = useSelector(selectPermissions);
   const [search, setSearch] = useState('');
   const [dateField, setDateField] = useState<GetOrdersQueryArgs['dateField']>(DEFAULT_DATE_FIELD);
   const [startDate, setStartDate] = useState('');
@@ -404,7 +407,7 @@ const OrdersList = () => {
 
       <div className="mb-6 space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          {(user?.roles === "RECEPTION" || user?.roles === "ADMIN") && (
+          {userHasPermission(user, permissions, PERMISSION_ORDERS_WRITE) && (
             <NavLink
               to="/dashboard/add-order"
               className="inline-flex w-fit items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-center text-sm font-semibold text-white shadow-md shadow-primary/25 transition hover:bg-opacity-95"

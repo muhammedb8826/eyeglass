@@ -12,6 +12,12 @@ export const PERMISSION_ORDERS_WRITE = "orders.write";
 export const PERMISSION_ORDER_ITEMS_READ = "order_items.read";
 export const PERMISSION_ORDER_ITEMS_WRITE = "order_items.write";
 
+/** Line status InProgress / Ready (lab / production). */
+export const PERMISSION_PRODUCTION_WRITE = "production.write";
+
+/** Line qualityControlStatus (Passed / Failed / Pending). */
+export const PERMISSION_QUALITY_CONTROL_WRITE = "quality_control.write";
+
 export const PERMISSION_CUSTOMERS_READ = "customers.read";
 export const PERMISSION_CUSTOMERS_WRITE = "customers.write";
 

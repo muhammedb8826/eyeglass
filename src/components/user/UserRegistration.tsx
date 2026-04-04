@@ -5,6 +5,7 @@ import Loader from "@/common/Loader";
 import Breadcrumb from "../Breadcrumb";
 import SelectRoles from "./SelectRoles";
 import { useCreateUserMutation } from "@/redux/user/userApiSlice";
+import { DEFAULT_SIGNUP_ROLE } from "@/constants/roles";
 import { useNavigate } from "react-router-dom";
 import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
 interface ErrorData {
@@ -28,7 +29,7 @@ const UserRegistration = () => {
   });
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [selectedRoles, setSelectedRoles] = useState<string>("USER");
+  const [selectedRoles, setSelectedRoles] = useState<string>(DEFAULT_SIGNUP_ROLE);
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

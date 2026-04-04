@@ -1,85 +1,94 @@
 import { useEffect, useState } from "react";
+import { APP_ROLES, type AppRole } from "@/constants/roles";
+
+function isAppRole(r: string): r is AppRole {
+  return (APP_ROLES as readonly string[]).includes(r);
+}
+
+const ROLE_LABELS: Record<string, string> = {
+  ADMIN: "Admin",
+  FINANCE: "Finance",
+  SALES: "Sales",
+  CASHIER: "Cashier",
+  PRODUCTION: "Production",
+  STORE_KEEPER: "Store keeper",
+  QUALITY_CONTROL: "Quality control",
+};
 
 interface SelectRolesProps {
-    selectedRoles: string;
-    onRolesChange: (role: string) => void;
+  selectedRoles: string;
+  onRolesChange: (role: string) => void;
 }
 
-const SelectRoles: React.FC<SelectRolesProps> = ({ selectedRoles, onRolesChange }) => {
-    const [isOptionSelected, setIsOptionSelected] = useState<boolean>(false);
+const SelectRoles: React.FC<SelectRolesProps> = ({
+  selectedRoles,
+  onRolesChange,
+}) => {
+  const [isOptionSelected, setIsOptionSelected] = useState<boolean>(false);
 
-    useEffect(() => {
-        if (selectedRoles) {
+  useEffect(() => {
+    if (selectedRoles) {
+      setIsOptionSelected(true);
+    }
+  }, [selectedRoles]);
+
+  return (
+    <div>
+      <label className="mb-3 block text-sm font-medium text-black dark:text-white">
+        Select roles
+      </label>
+
+      <div className="relative z-20 bg-white dark:bg-form-input">
+        <select
+          title="roles"
+          id="roles"
+          name="roles"
+          value={selectedRoles}
+          onChange={(e) => {
+            onRolesChange(e.target.value);
             setIsOptionSelected(true);
-        }
-    }, [selectedRoles]);
+          }}
+          className={`relative z-20 w-full appearance-none rounded border border-stroke bg-transparent py-3 px-12 outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input ${
+            isOptionSelected ? "text-black dark:text-white" : ""
+          }`}
+        >
+          {selectedRoles && !isAppRole(selectedRoles) && (
+            <option value={selectedRoles} className="text-body dark:text-bodydark">
+              (Legacy role) {selectedRoles}
+            </option>
+          )}
+          {APP_ROLES.map((value) => (
+            <option
+              key={value}
+              value={value}
+              className="text-body dark:text-bodydark"
+            >
+              {ROLE_LABELS[value] ?? value}
+            </option>
+          ))}
+        </select>
 
-    return (
-        <div>
-            <label className="mb-3 block text-sm font-medium text-black dark:text-white">
-                Select roles
-            </label>
+        <span className="absolute top-1/2 right-4 z-10 -translate-y-1/2">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <g opacity="0.8">
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M5.29289 8.29289C5.68342 7.90237 6.31658 7.90237 6.70711 8.29289L12 13.5858L17.2929 8.29289C17.6834 7.90237 18.3166 7.90237 18.7071 8.29289C19.0976 8.68342 19.0976 9.31658 18.7071 9.70711L12.7071 15.7071C12.3166 16.0976 11.6834 16.0976 11.2929 15.7071L5.29289 9.70711C4.90237 9.31658 4.90237 8.68342 5.29289 8.29289Z"
+                fill="#637381"
+              ></path>
+            </g>
+          </svg>
+        </span>
+      </div>
+    </div>
+  );
+};
 
-            <div className="relative z-20 bg-white dark:bg-form-input">
-                <select
-                    title="roles"
-                    id="roles"
-                    name="roles"
-                    value={selectedRoles}
-                    onChange={(e) => {
-                        onRolesChange(e.target.value);
-                        setIsOptionSelected(true);
-                    }}
-                    className={`relative z-20 w-full appearance-none rounded border border-stroke bg-transparent py-3 px-12 outline-none transition focus:border-primary active:border-primary dark:border-form-strokedark dark:bg-form-input ${isOptionSelected ? 'text-black dark:text-white' : ''
-                        }`}
-                >
-                    <option value="USER" className="text-body dark:text-bodydark">
-                        User
-                    </option>
-                    <option value="ADMIN" className="text-body dark:text-bodydark">
-                        Admin
-                    </option>
-                    <option value="RECEPTION" className="text-body dark:text-bodydark">
-                        Reception
-                    </option>
-                    <option value="LAB_TECHNICIAN" className="text-body dark:text-bodydark">
-                        Lab technician
-                    </option>
-                    <option value="OPERATOR" className="text-body dark:text-bodydark">
-                        Operator
-                    </option>
-                    <option value="FINANCE" className="text-body dark:text-bodydark">
-                        Finance
-                    </option>
-                    <option value="DISPENSER" className="text-body dark:text-bodydark">
-                        Dispenser
-                    </option>
-                    <option value="PURCHASER" className="text-body dark:text-bodydark">
-                        Purchaser
-                    </option>
-                </select>
-
-                <span className="absolute top-1/2 right-4 z-10 -translate-y-1/2">
-                    <svg
-                        width="24"
-                        height="24"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                    >
-                        <g opacity="0.8">
-                            <path
-                                fillRule="evenodd"
-                                clipRule="evenodd"
-                                d="M5.29289 8.29289C5.68342 7.90237 6.31658 7.90237 6.70711 8.29289L12 13.5858L17.2929 8.29289C17.6834 7.90237 18.3166 7.90237 18.7071 8.29289C19.0976 8.68342 19.0976 9.31658 18.7071 9.70711L12.7071 15.7071C12.3166 16.0976 11.6834 16.0976 11.2929 15.7071L5.29289 9.70711C4.90237 9.31658 4.90237 8.68342 5.29289 8.29289Z"
-                                fill="#637381"
-                            ></path>
-                        </g>
-                    </svg>
-                </span>
-            </div>
-        </div>
-    )
-}
-
-export default SelectRoles
+export default SelectRoles;

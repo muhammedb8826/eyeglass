@@ -1,7 +1,9 @@
 import { useParams } from "react-router-dom";
 import Breadcrumb from "../Breadcrumb";
 import { useSelector } from "react-redux";
-import { selectCurrentUser } from "@/redux/authSlice";
+import { selectCurrentUser, selectPermissions } from "@/redux/authSlice";
+import { userHasPermission } from "@/utils/permissions";
+import { PERMISSION_FINANCE_WRITE } from "@/constants/permissions";
 import { useGetCommissionQuery, useUpdateCommissionMutation } from "@/redux/commission/commissionApiSlice";
 import Loader from "@/common/Loader";
 import ErroPage from "../common/ErroPage";
@@ -14,7 +16,8 @@ interface ErrorData {
 }
 
 export const CommissionDetails = () => {
-    const user = useSelector(selectCurrentUser)
+    const user = useSelector(selectCurrentUser);
+    const permissions = useSelector(selectPermissions);
     const { id } = useParams();
     const { data: commission, isLoading, error, isError } = useGetCommissionQuery(id ? id : '');
     const [updateCommission] = useUpdateCommissionMutation();
@@ -32,7 +35,7 @@ export const CommissionDetails = () => {
     }, [commission]);
 
     const handlePayment = async (transactionId: string, amount: number) => {
-        if (user?.roles !== 'ADMIN') {
+        if (!userHasPermission(user, permissions, PERMISSION_FINANCE_WRITE)) {
             toast.error('You are not authorized to perform this action');
             return;
         }

@@ -8,7 +8,10 @@ import SelectRoles from "./SelectRoles";
 import React, { ChangeEvent } from 'react';
 import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
 import { isFetchBaseQueryError } from "@/types/ErrorType";
-import { selectCurrentUser } from "@/redux/authSlice";
+import { selectCurrentUser, selectPermissions } from "@/redux/authSlice";
+import { userHasPermission } from "@/utils/permissions";
+import { PERMISSION_USERS_MANAGE } from "@/constants/permissions";
+import { DEFAULT_SIGNUP_ROLE } from "@/constants/roles";
 import { useSelector } from "react-redux";
 
 interface ErrorData {
@@ -18,6 +21,7 @@ interface ErrorData {
 const UpdateUser = () => {
   const { id } = useParams<{ id: string }>();
   const currentUser = useSelector(selectCurrentUser);
+  const permissions = useSelector(selectPermissions);
   const navigate = useNavigate();
   const { data: user, isLoading: isFetching, refetch } = useGetUserQuery(id as string);
   const [updateUser, { isLoading: isUpdating }] = useUpdateUserMutation();
@@ -35,7 +39,7 @@ const UpdateUser = () => {
 
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [selectedRoles, setSelectedRoles] = useState<string>("USER");
+  const [selectedRoles, setSelectedRoles] = useState<string>(DEFAULT_SIGNUP_ROLE);
 
   useEffect(() => {
     if (user) {
@@ -74,9 +78,7 @@ const UpdateUser = () => {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (currentUser?.roles !== 'ADMIN') {
-      console.log(user);
-      
+    if (!userHasPermission(currentUser, permissions, PERMISSION_USERS_MANAGE)) {
       toast.error('You are not authorized to assign role');
       return;
     }

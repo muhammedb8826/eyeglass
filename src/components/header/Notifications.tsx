@@ -5,7 +5,16 @@ import Loader from "@/common/Loader";
 import { Link, useParams } from "react-router-dom";
 import Breadcrumb from "../Breadcrumb";
 import { NotificationTable } from "./NotificationTable";
-import { selectCurrentUser } from "@/redux/authSlice";
+import { selectCurrentUser, selectPermissions } from "@/redux/authSlice";
+import { userHasAnyPermission, userHasPermission } from "@/utils/permissions";
+import {
+  ADMIN_ROLE,
+  PERMISSION_ORDER_ITEMS_WRITE,
+  PERMISSION_ORDERS_READ,
+  PERMISSION_ORDERS_WRITE,
+  PERMISSION_PRODUCTION_WRITE,
+  PERMISSION_QUALITY_CONTROL_WRITE,
+} from "@/constants/permissions";
 import { useCreateOrderItemNoteMutation } from "@/redux/order/orderItemNotesApiSlice";
 import { OrderItemNotes } from "@/types/OrderItemNotes";
 import { useGetOrderQuery, useGetOrderItemsQuery, useUpdateOrderItemMutation } from "@/redux/order/orderApiSlice";
@@ -21,6 +30,7 @@ import { QcFailureModal } from "../order/QcFailureModal";
 export const Notifications = () => {
   const { id } = useParams<{ id: string }>();
   const user = useSelector(selectCurrentUser);
+  const permissions = useSelector(selectPermissions);
   const { data: order, isLoading: isOrderLoading } = useGetOrderQuery(id ?? "");
   const { data: orderData, isLoading, error, isError, isSuccess, refetch } = useGetOrderItemsQuery(id ?? "");
   const [updateOrderItem, { isLoading: isUpdatingOrderItem }] = useUpdateOrderItemMutation();
@@ -150,25 +160,26 @@ export const Notifications = () => {
         } as OrderItemType;
       });
 
-      // Filter order items based on user's role
+      // Visibility: production/QC/line-edit permissions see full lists; front desk (orders only) sees a subset
       let filteredOrderData = normalizedOrderData;
-      
-      // Role-based filtering logic (see FRONTEND_GUIDE.md#user-roles)
-      if (user?.roles === 'ADMIN') {
-        filteredOrderData = orderData;
-      } else if (user?.roles === 'LAB_TECHNICIAN') {
-        // Lab technicians see all items; they use approval/QC to decide actions
-        filteredOrderData = orderData;
-      } else if (user?.roles === 'OPERATOR') {
-        // Operators now see all items for the order, scoped by status tabs below
-        filteredOrderData = orderData;
-      } else if (user?.roles === 'RECEPTION' || user?.roles === 'DISPENSER') {
-        // Front desk focuses on handoff / delivery and cancellations
-        filteredOrderData = orderData.filter(item =>
-          ["Pending", "Ready", "Delivered", "Cancelled"].includes(item.status || "")
+      const canSeeFullProductionView =
+        user?.roles === ADMIN_ROLE ||
+        userHasAnyPermission(user, permissions, [
+          PERMISSION_ORDER_ITEMS_WRITE,
+          PERMISSION_PRODUCTION_WRITE,
+          PERMISSION_QUALITY_CONTROL_WRITE,
+        ]);
+      const canSeeFrontDeskView =
+        userHasPermission(user, permissions, PERMISSION_ORDERS_READ) ||
+        userHasPermission(user, permissions, PERMISSION_ORDERS_WRITE);
+
+      if (canSeeFullProductionView) {
+        filteredOrderData = normalizedOrderData;
+      } else if (canSeeFrontDeskView) {
+        filteredOrderData = normalizedOrderData.filter((item) =>
+          ["Pending", "Ready", "Delivered", "Cancelled"].includes(item.status || ""),
         );
       } else {
-        // Other roles currently see no order items here
         filteredOrderData = [];
       }
       
@@ -225,13 +236,18 @@ export const Notifications = () => {
         ),
       );
     }
-  }, [id, isSuccess, orderData, assignedMachinesData, user]);
+  }, [id, isSuccess, orderData, assignedMachinesData, user, permissions]);
     
 
   const handleAction = (index: number) => setShowPopover(prevIndex => (prevIndex === index ? null : index));
 
-  const handleUpdateOrderItem = async (orderItemId: string, status: string, index: number, roleCheck: (roles: string) => boolean) => {
-    if (!user?.roles || !roleCheck(user?.roles)) {
+  const handleUpdateOrderItem = async (
+    orderItemId: string,
+    status: string,
+    index: number,
+    authorized: () => boolean,
+  ) => {
+    if (!authorized()) {
       toast.error("You are not authorized to edit this order");
       return;
     }
@@ -320,18 +336,30 @@ export const Notifications = () => {
     }
   };
 
-  const roleCheckers = {
-    pending: (role: string) => ["LAB_TECHNICIAN", "RECEPTION", "ADMIN"].includes(role),
-    inProgress: (role: string) => ["OPERATOR", "ADMIN"].includes(role),
-    ready: (role: string) => ["OPERATOR", "ADMIN"].includes(role),
-    delivered: (role: string) => ["RECEPTION", "DISPENSER", "ADMIN"].includes(role),
-    cancelled: (role: string) => role === "ADMIN",
-    approved: (role: string) => ["LAB_TECHNICIAN", "ADMIN"].includes(role),
-    qc: (role: string) => ["ADMIN", "LAB_TECHNICIAN"].includes(role),
+  const permissionCheckers = {
+    pending: () => userHasPermission(user, permissions, PERMISSION_ORDER_ITEMS_WRITE),
+    inProgress: () =>
+      userHasAnyPermission(user, permissions, [
+        PERMISSION_PRODUCTION_WRITE,
+        PERMISSION_ORDER_ITEMS_WRITE,
+      ]),
+    ready: () => userHasPermission(user, permissions, PERMISSION_ORDER_ITEMS_WRITE),
+    delivered: () => userHasPermission(user, permissions, PERMISSION_ORDER_ITEMS_WRITE),
+    cancelled: () => userHasPermission(user, permissions, PERMISSION_ORDER_ITEMS_WRITE),
+    approved: () =>
+      userHasAnyPermission(user, permissions, [
+        PERMISSION_ORDER_ITEMS_WRITE,
+        PERMISSION_PRODUCTION_WRITE,
+      ]),
+    qc: () => userHasPermission(user, permissions, PERMISSION_QUALITY_CONTROL_WRITE),
   };
 
   const handleQcFailConfirm = async (reason: string, requestStoreWithOperator: boolean) => {
-    if (!user?.roles || !roleCheckers.qc(user.roles) || !qcFailOrderItemId || !user?.id) {
+    if (
+      !user?.id ||
+      !qcFailOrderItemId ||
+      !userHasPermission(user, permissions, PERMISSION_QUALITY_CONTROL_WRITE)
+    ) {
       toast.error("You are not authorized or session is incomplete.");
       return;
     }
@@ -477,7 +505,7 @@ export const Notifications = () => {
             orders={pendingItems}
             statusLabel="Pending"
             handleAction={handleAction}
-            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.pending)}
+            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, permissionCheckers.pending)}
             handleUpdateNote={handleUpdateNote}
             showPopover={showPopover}
             popoverRef={pendingPopoverRef}
@@ -494,7 +522,7 @@ export const Notifications = () => {
             orders={inProgressItems}
             statusLabel="In progress"
             handleAction={handleAction}
-            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.inProgress)}
+            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, permissionCheckers.inProgress)}
             handleUpdateNote={handleUpdateNote}
             showPopover={showPopover}
             popoverRef={inProgressPopoverRef}
@@ -511,7 +539,7 @@ export const Notifications = () => {
             orders={readyItems}
             statusLabel="Ready"
             handleAction={handleAction}
-            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.ready)}
+            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, permissionCheckers.ready)}
             handleUpdateNote={handleUpdateNote}
             showPopover={showPopover}
             popoverRef={readyPopoverRef}
@@ -528,7 +556,7 @@ export const Notifications = () => {
             orders={deliveredItems}
             statusLabel="Delivered"
             handleAction={handleAction}
-            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.delivered)}
+            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, permissionCheckers.delivered)}
             handleUpdateNote={handleUpdateNote}
             showPopover={showPopover}
             popoverRef={deliveredPopoverRef}
@@ -545,7 +573,7 @@ export const Notifications = () => {
             orders={cancelledItems}
             statusLabel="Cancelled"
             handleAction={handleAction}
-            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.cancelled)}
+            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, permissionCheckers.cancelled)}
             handleUpdateNote={handleUpdateNote}
             showPopover={showPopover}
             popoverRef={cancelledPopoverRef}
@@ -562,7 +590,7 @@ export const Notifications = () => {
             orders={approvedItems}
             statusLabel="Approved"
             handleAction={handleAction}
-            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, roleCheckers.approved)}
+            handleModalOpen={(id, status, index) => handleUpdateOrderItem(id, status, index, permissionCheckers.approved)}
             handleUpdateNote={handleUpdateNote}
             showPopover={showPopover}
             popoverRef={deliveredPopoverRef}
@@ -585,7 +613,7 @@ export const Notifications = () => {
                 setQcFailOrderItemId(orderItemId);
                 return;
               }
-              handleUpdateOrderItem(orderItemId, status, index, roleCheckers.qc);
+              handleUpdateOrderItem(orderItemId, status, index, permissionCheckers.qc);
             }}
             handleUpdateNote={handleUpdateNote}
             showPopover={showPopover}

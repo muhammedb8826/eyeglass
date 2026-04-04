@@ -9,7 +9,9 @@ import Swal from "sweetalert2";
 import Breadcrumb from "@/components/Breadcrumb";
 import { BiPurchaseTag } from "react-icons/bi";
 import { BsTicketDetailed } from "react-icons/bs";
-import { selectCurrentUser } from "@/redux/authSlice";
+import { selectCurrentUser, selectPermissions } from "@/redux/authSlice";
+import { userHasPermission } from "@/utils/permissions";
+import { PERMISSION_PURCHASES_WRITE } from "@/constants/permissions";
 import { useDeletePurchaseMutation, useGetPurchasesQuery } from "@/redux/purchase/purchaseApiSlice";
 import { toast } from "react-toastify";
 import { FetchBaseQueryError } from "@reduxjs/toolkit/query";
@@ -18,6 +20,7 @@ import { handleApiError } from "@/utils/errorHandling";
 
 export const Purschase = () => {
   const user = useSelector(selectCurrentUser);
+  const permissions = useSelector(selectPermissions);
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const { data, isLoading, isError, error } = useGetPurchasesQuery({ page, limit })
@@ -179,7 +182,7 @@ export const Purschase = () => {
       <Breadcrumb pageName="Purchases" />
 
       <div className="flex items-center justify-between flex-column flex-wrap md:flex-row space-y-4 md:space-y-0 pb-4">
-        {(user?.roles === 'ADMIN' || user?.roles === 'PURCHASER') && (
+        {userHasPermission(user, permissions, PERMISSION_PURCHASES_WRITE) && (
           <div>
             <Link
               to={"/dashboard/inventory/purchases/add"}

@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { useParams } from "react-router-dom";
 import { PurchaseNotificationTable } from "./PurchaseNotificationTable";
-import { selectCurrentUser } from "@/redux/authSlice";
+import { selectCurrentUser, selectPermissions } from "@/redux/authSlice";
+import { userHasPermission } from "@/utils/permissions";
+import { PERMISSION_PURCHASES_WRITE } from "@/constants/permissions";
 import { useGetPurchaseItemsQuery, useUpdatePurchaseItemMutation } from "@/redux/purchase/purchaseApiSlice";
 import { useCreatePurchaseItemNoteMutation } from "@/redux/purchase/purchaseItemNotesApiSlice";
 import { PurchaseItem } from "@/types/PurchaseItem";
@@ -21,6 +23,7 @@ import { handleApiError } from "@/utils/errorHandling";
 export const PurchaseNotifications = () => {
     const { id } = useParams<{ id: string }>();
     const user = useSelector(selectCurrentUser);
+    const permissions = useSelector(selectPermissions);
     const { data: purchaseItems, isLoading: purchaseItemsLoading, error: purchaseError, isError, isSuccess, refetch } = useGetPurchaseItemsQuery(id ? id : "");
     const [updatePurchaseItem, { isLoading }] = useUpdatePurchaseItemMutation();
     const [createPurchaseItemNote] = useCreatePurchaseItemNoteMutation();
@@ -102,8 +105,13 @@ export const PurchaseNotifications = () => {
     const handleAction = (index: number) => setShowPopover(prevIndex => (prevIndex === index ? null : index));
 
 
-    const handleUpdatePurchaseItem = async (id: string, status: string, index: number, roleCheck: (roles: string) => boolean) => {
-        if (!user?.roles || !roleCheck(user?.roles)) {
+    const handleUpdatePurchaseItem = async (
+        id: string,
+        status: string,
+        index: number,
+        authorized: () => boolean,
+    ) => {
+        if (!authorized()) {
             toast.error("You are not authorized to edit this order");
             return;
         }
@@ -141,10 +149,8 @@ export const PurchaseNotifications = () => {
         }
     };
 
-    const roleCheckers = {
-        pendingApproval: (role: string) => ["FINANCE", "ADMIN"].includes(role),
-        receiveReady: (role: string) => ["PURCHASER", "ADMIN"].includes(role),
-    };
+    const canMutatePurchases = () =>
+        userHasPermission(user, permissions, PERMISSION_PURCHASES_WRITE);
 
     const handleUpdateNote = async (newNote: PurchaseItemNoteType, index: number) => {
         if (newNote.text?.trim()) {
@@ -186,7 +192,7 @@ export const PurchaseNotifications = () => {
                         title={`Pending approval purchases`}
                         orders={pendingApprovalPurchases}
                         handleAction={handleAction}
-                        handleModalOpen={(id, status, index) => handleUpdatePurchaseItem(id, status, index, roleCheckers.pendingApproval)}
+                        handleModalOpen={(id, status, index) => handleUpdatePurchaseItem(id, status, index, canMutatePurchases)}
                         handleUpdateNote={handleUpdateNote}
                         showPopover={showPopover}
                         popoverRef={pendingApprovalPopoverRef}
@@ -202,7 +208,7 @@ export const PurchaseNotifications = () => {
                         title={`Pending approval orders`}
                         orders={receiveReadyPurchases}
                         handleAction={handleAction}
-                        handleModalOpen={(id, status, index) => handleUpdatePurchaseItem(id, status, index, roleCheckers.receiveReady)}
+                        handleModalOpen={(id, status, index) => handleUpdatePurchaseItem(id, status, index, canMutatePurchases)}
                         handleUpdateNote={handleUpdateNote}
                         showPopover={showPopover}
                         popoverRef={receiveReadyPopoverRef}

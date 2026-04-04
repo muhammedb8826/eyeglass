@@ -15,7 +15,9 @@ import {
   useGetUsersQuery,
   useDeleteUserMutation,
 } from "@/redux/user/userApiSlice";
-import { selectCurrentUser } from "@/redux/authSlice";
+import { selectCurrentUser, selectPermissions } from "@/redux/authSlice";
+import { userHasPermission } from "@/utils/permissions";
+import { PERMISSION_USERS_MANAGE } from "@/constants/permissions";
 import Pagination from "@/common/Pagination";
 import { toast } from "react-toastify";
 import { getProfileImageUrl } from "@/utils/apiUtils";
@@ -26,6 +28,7 @@ const User = () => {
   const { data, isLoading, isError, error } = useGetUsersQuery({ page, limit });
   const [deleteUser, { isLoading: isDeleting }] = useDeleteUserMutation();
   const currentUser = useSelector(selectCurrentUser);
+  const permissions = useSelector(selectPermissions);
   const [deactivateUser, { isLoading: isDeactivating }] =
     useDeactivateUserMutation();
   const [activateUser, { isLoading: isActivating }] = useActivateUserMutation();
@@ -74,7 +77,7 @@ const User = () => {
   };
 
   const handleDeleteUser = (id: string) => {
-    if (currentUser?.roles !== "ADMIN") {
+    if (!userHasPermission(currentUser, permissions, PERMISSION_USERS_MANAGE)) {
       toast.error('You are not allowed to delete this user');
       return;
     }
@@ -109,7 +112,7 @@ const User = () => {
   };
 
   const handleToggleActive = async (targetUserId: string, nextActive: boolean) => {
-    if (currentUser?.roles !== "ADMIN") {
+    if (!userHasPermission(currentUser, permissions, PERMISSION_USERS_MANAGE)) {
       toast.error("You are not authorized to perform this action");
       return;
     }
@@ -176,7 +179,7 @@ const User = () => {
               className="absolute z-40 right-10 mt-2 bg-white divide-y divide-gray-100 rounded-lg shadow w-44"
             >
               <ul className="py-2 text-sm text-gray-700">
-                {currentUser?.roles === "ADMIN" && (
+                {userHasPermission(currentUser, permissions, PERMISSION_USERS_MANAGE) && (
                   <>
                     <li>
                       <NavLink
@@ -221,7 +224,7 @@ const User = () => {
     <>
       <Breadcrumb pageName="Users" />
       <div className="flex items-center justify-between flex-column flex-wrap md:flex-row space-y-4 md:space-y-0 pb-4">
-        {currentUser?.roles === 'ADMIN' && (
+        {userHasPermission(currentUser, permissions, PERMISSION_USERS_MANAGE) && (
           <div>
             <NavLink to="/dashboard/users/add" className="inline-flex items-center justify-center rounded bg-primary py-2 px-4 text-center font-medium text-white hover:bg-opacity-90">
               <FaUserPlus />

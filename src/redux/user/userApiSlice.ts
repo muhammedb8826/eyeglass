@@ -28,7 +28,7 @@ export const usersApiSlice = apiSlice.injectEndpoints({
         }),
         getOperatorUser: builder.query<UserType[], void>({
             query: () => ({
-                url: 'users/by-role?roles=OPERATOR',
+                url: 'users/by-role?roles=STORE_KEEPER',
                 method: "GET",  
             }),
             providesTags: (result) =>

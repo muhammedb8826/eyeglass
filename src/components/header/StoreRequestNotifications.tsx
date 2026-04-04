@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { useParams } from "react-router-dom";
 import { StoreRequestNotificationTable } from "./StoreRequestNotificationTable";
-import { selectCurrentUser } from "@/redux/authSlice";
+import { selectCurrentUser, selectPermissions } from "@/redux/authSlice";
+import { userHasPermission } from "@/utils/permissions";
+import { PERMISSION_SALES_WRITE } from "@/constants/permissions";
 import { useCreateSaleItemNoteMutation, useGetSaleItemsQuery, useUpdateSaleItemMutation } from "@/redux/sale/saleApiSlice";
 import { SaleItemNoteType } from "@/types/SaleItemNoteType";
 import ErroPage from "../common/ErroPage";
@@ -17,6 +19,7 @@ import { handleApiError } from "@/utils/errorHandling";
 export const StoreRequestNotifications = () => {
     const { id } = useParams<{ id: string }>();
     const user = useSelector(selectCurrentUser);
+    const permissions = useSelector(selectPermissions);
     const { data: saleItems, isLoading: isSaleItemsLoading, error: saleError, isError, refetch, isSuccess } = useGetSaleItemsQuery(id ? id : '');
     const [updateSaleItems, { isLoading: isUpdateSaleItemsLoading }] = useUpdateSaleItemMutation();
     const [createSaleItemNote, { isLoading: isCreateSaleItemNoteLoading }] = useCreateSaleItemNoteMutation();
@@ -86,8 +89,13 @@ export const StoreRequestNotifications = () => {
     const handleAction = (index: number) => setShowPopover(prevIndex => (prevIndex === index ? null : index));
 
 
-    const handleUpdateSaleItem = async (id: string, status: string, index: number, roleCheck: (roles: string) => boolean) => {
-        if (!user?.roles || !roleCheck(user?.roles)) {
+    const handleUpdateSaleItem = async (
+        id: string,
+        status: string,
+        index: number,
+        authorized: () => boolean,
+    ) => {
+        if (!authorized()) {
             toast.error("You are not authorized to edit this order");
             return;
         }
@@ -128,10 +136,7 @@ export const StoreRequestNotifications = () => {
     };
 
 
-    const roleCheckers = {
-        pendingStockOutRequests: (role: string) => ['ADMIN', 'PURCHASER'].includes(role),
-        approveReadyRequests: (role: string) => ['ADMIN'].includes(role),
-    }
+    const canMutateSales = () => userHasPermission(user, permissions, PERMISSION_SALES_WRITE);
 
 
     const handleUpdateNote = async (newNote: SaleItemNoteType, index: number) => {
@@ -175,7 +180,7 @@ export const StoreRequestNotifications = () => {
                         title={`Pending approval requests`}
                         orders={approveReadyRequests}
                         handleAction={handleAction}
-                        handleModalOpen={(id, status, index) => handleUpdateSaleItem(id, status, index, roleCheckers.approveReadyRequests)}
+                        handleModalOpen={(id, status, index) => handleUpdateSaleItem(id, status, index, canMutateSales)}
                         handleUpdateNote={handleUpdateNote}
                         showPopover={showPopover}
                         popoverRef={approveReadyPopoverRef}
@@ -191,7 +196,7 @@ export const StoreRequestNotifications = () => {
                         title={`Pending stock out`}
                         orders={pendingStockOutRequests}
                         handleAction={handleAction}
-                        handleModalOpen={(id, status, index) => handleUpdateSaleItem(id, status, index, roleCheckers.pendingStockOutRequests)}
+                        handleModalOpen={(id, status, index) => handleUpdateSaleItem(id, status, index, canMutateSales)}
                         handleUpdateNote={handleUpdateNote}
                         showPopover={showPopover}
                         popoverRef={pendingStockOutPopoverRef}

@@ -84,11 +84,6 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
       permission: PERMISSION_PURCHASES_READ,
     },
     {
-      to: "/dashboard/inventory/machines",
-      label: "Machines",
-      permission: PERMISSION_MASTER_READ,
-    },
-    {
       to: "/dashboard/inventory/lab-tools",
       label: "Lab Tools",
       permission: PERMISSION_LAB_TOOL_READ,

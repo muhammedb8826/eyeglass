@@ -8,7 +8,12 @@ import { IoMdClose } from "react-icons/io";
 import { SalesPartnerSearchInput } from "../commission/SalesPartnerSearchInput";
 import { FaChevronDown, FaChevronUp } from "react-icons/fa6";
 import Breadcrumb from "../Breadcrumb";
-import { selectCurrentUser, selectCurrentToken } from "@/redux/authSlice";
+import { selectCurrentUser, selectCurrentToken, selectPermissions } from "@/redux/authSlice";
+import { userHasPermission } from "@/utils/permissions";
+import {
+  PERMISSION_FINANCE_READ,
+  PERMISSION_FINANCE_WRITE,
+} from "@/constants/permissions";
 import { useGetAllItemsQuery } from "@/redux/items/itemsApiSlice";
 import { CustomerType } from "@/types/CustomerType";
 import Tabs from "@/common/TabComponent";
@@ -165,6 +170,7 @@ const tabs = [
 
 export const OrderRegistration = () => {
   const user = useSelector(selectCurrentUser);
+  const permissions = useSelector(selectPermissions);
   const accessToken = useSelector(selectCurrentToken);
   const { data: items, isLoading: isItemsLoading } = useGetAllItemsQuery();
   const { data: customers, isLoading: isCustomersLoading } = useGetAllCustomersQuery({});
@@ -850,7 +856,7 @@ export const OrderRegistration = () => {
   };
 
   const handleCommissionPaymentMethod = (index: number, e: React.ChangeEvent<HTMLSelectElement>) => {
-    if (user?.roles !== 'ADMIN') {
+    if (!userHasPermission(user, permissions, PERMISSION_FINANCE_WRITE)) {
       toast.error('You are not authorized to perform this action');
       return;
     }
@@ -866,7 +872,7 @@ export const OrderRegistration = () => {
   };
 
   const handleCommissionChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
-    if (user?.roles !== 'ADMIN') {
+    if (!userHasPermission(user, permissions, PERMISSION_FINANCE_WRITE)) {
       toast.error('You are not authorized to perform this action');
       return;
     }
@@ -1843,10 +1849,11 @@ export const OrderRegistration = () => {
 
               {activeTabId === "payment-terms" && (
                 <div
-                  className={`${user?.roles !== "ADMIN" && user?.roles !== "FINANCE"
-                    ? "hidden"
-                    : ""
-                    }`}
+                  className={`${
+                    !userHasPermission(user, permissions, PERMISSION_FINANCE_READ)
+                      ? "hidden"
+                      : ""
+                  }`}
                 >
                   {/* transactions */}
 
@@ -2078,10 +2085,11 @@ export const OrderRegistration = () => {
 
 {activeTabId === "commissions" && (
                 <div
-                  className={`${user?.roles !== "ADMIN" && user?.roles !== "FINANCE"
-                    ? "hidden"
-                    : ""
-                    }`}
+                  className={`${
+                    !userHasPermission(user, permissions, PERMISSION_FINANCE_READ)
+                      ? "hidden"
+                      : ""
+                  }`}
                 >
                   <div
                     className={`grid grid-cols-2 gap-4 px-4 mb-4`}>
@@ -2238,7 +2246,7 @@ export const OrderRegistration = () => {
 
               {activeTabId === "other-information" && (
                 <>
-                  {user?.roles === "ADMIN" && (
+                  {userHasPermission(user, permissions, PERMISSION_FINANCE_WRITE) && (
                     <>
 
                       <div className="max-w-full overflow-x-auto px-4">
