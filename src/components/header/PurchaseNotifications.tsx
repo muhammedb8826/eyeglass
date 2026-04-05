@@ -9,6 +9,7 @@ import { userHasPermission } from "@/utils/permissions";
 import {
   PERMISSION_APPROVALS_MANAGE,
   PERMISSION_PURCHASES_WRITE,
+  PERMISSION_STOCK_OPS_WRITE,
 } from "@/constants/permissions";
 import { useGetPurchaseItemsQuery, useUpdatePurchaseItemMutation } from "@/redux/purchase/purchaseApiSlice";
 import { useCreatePurchaseItemNoteMutation } from "@/redux/purchase/purchaseItemNotesApiSlice";
@@ -112,6 +113,17 @@ export const PurchaseNotifications = () => {
         if (status === "Approved") {
             if (!userHasPermission(user, permissions, PERMISSION_APPROVALS_MANAGE)) {
                 toast.error("You are not authorized to approve purchase lines.");
+                return;
+            }
+        } else if (status === "Received") {
+            if (!userHasPermission(user, permissions, PERMISSION_PURCHASES_WRITE)) {
+                toast.error("You are not authorized to update purchase lines.");
+                return;
+            }
+            if (!userHasPermission(user, permissions, PERMISSION_STOCK_OPS_WRITE)) {
+                toast.error(
+                    "Receiving into inventory requires stock_ops.write (in addition to purchases access).",
+                );
                 return;
             }
         } else if (!userHasPermission(user, permissions, PERMISSION_PURCHASES_WRITE)) {

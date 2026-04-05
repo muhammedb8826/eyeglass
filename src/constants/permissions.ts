@@ -55,6 +55,7 @@ export const PERMISSION_LAB_TOOL_WRITE = "lab_tool.write";
 export const PERMISSION_FINANCE_READ = "finance.read";
 export const PERMISSION_FINANCE_WRITE = "finance.write";
 
+/** Operator stock, sale line Stocked-out (physical issue), purchase line Received (goods-in). */
 export const PERMISSION_STOCK_OPS_READ = "stock_ops.read";
 export const PERMISSION_STOCK_OPS_WRITE = "stock_ops.write";
 

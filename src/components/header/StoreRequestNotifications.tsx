@@ -9,6 +9,7 @@ import { userHasPermission } from "@/utils/permissions";
 import {
   PERMISSION_APPROVALS_MANAGE,
   PERMISSION_SALES_WRITE,
+  PERMISSION_STOCK_OPS_WRITE,
 } from "@/constants/permissions";
 import { useCreateSaleItemNoteMutation, useGetSaleItemsQuery, useUpdateSaleItemMutation } from "@/redux/sale/saleApiSlice";
 import { SaleItemNoteType } from "@/types/SaleItemNoteType";
@@ -96,6 +97,17 @@ export const StoreRequestNotifications = () => {
         if (status === "Approved") {
             if (!userHasPermission(user, permissions, PERMISSION_APPROVALS_MANAGE)) {
                 toast.error("You are not authorized to approve store requests.");
+                return;
+            }
+        } else if (status === "Stocked-out") {
+            if (!userHasPermission(user, permissions, PERMISSION_SALES_WRITE)) {
+                toast.error("You are not authorized to update store requests.");
+                return;
+            }
+            if (!userHasPermission(user, permissions, PERMISSION_STOCK_OPS_WRITE)) {
+                toast.error(
+                    "Physical stock issue requires stock_ops.write (in addition to sales access).",
+                );
                 return;
             }
         } else if (!userHasPermission(user, permissions, PERMISSION_SALES_WRITE)) {

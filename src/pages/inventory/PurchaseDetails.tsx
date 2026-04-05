@@ -18,6 +18,13 @@ import { CiMenuKebab } from "react-icons/ci";
 import { BsTicketDetailed } from "react-icons/bs";
 import { MdDelete } from "react-icons/md";
 import { handleApiError } from "@/utils/errorHandling";
+import { useSelector } from "react-redux";
+import { selectCurrentUser, selectPermissions } from "@/redux/authSlice";
+import { userHasPermission } from "@/utils/permissions";
+import {
+  PERMISSION_PURCHASES_WRITE,
+  PERMISSION_STOCK_OPS_WRITE,
+} from "@/constants/permissions";
 
 
 
@@ -34,6 +41,8 @@ const formatBaseLabel = (baseCode?: string, addPower?: number, quantity?: number
 
 export const PurchaseDetails = () => {
   const { id } = useParams();
+  const user = useSelector(selectCurrentUser);
+  const permissions = useSelector(selectPermissions);
   const { data: purchase, isLoading: isItemsLoading, error: itemsError, isError: itemsIsError } = useGetPurchaseQuery(id || '');
   const { data: items, isLoading } = useGetAllItemsQuery();
   const [updatePurchase, { isLoading: isUpdating }] = useUpdatePurchaseMutation();
@@ -355,9 +364,15 @@ export const PurchaseDetails = () => {
 
   const handleDeleteRow = (index: number) => {
     const item = formData[index];
-    if (item.status === 'Received') {
-      toast.error("Cannot delete received items");
-      return;
+    if (item.status === "Received") {
+      if (!userHasPermission(user, permissions, PERMISSION_PURCHASES_WRITE)) {
+        toast.error("You are not authorized to change this purchase.");
+        return;
+      }
+      if (!userHasPermission(user, permissions, PERMISSION_STOCK_OPS_WRITE)) {
+        toast.error("Deleting a received line requires stock_ops.write.");
+        return;
+      }
     }
     const list = [...formData];
     list.splice(index, 1);
@@ -414,6 +429,40 @@ export const PurchaseDetails = () => {
         );
         return;
       }
+    }
+
+    if (!userHasPermission(user, permissions, PERMISSION_PURCHASES_WRITE)) {
+      toast.error("You are not authorized to update purchases.");
+      return;
+    }
+
+    let needsReceiptChange = false;
+    for (const row of updatedFormData) {
+      const prev = purchase?.purchaseItems?.find((p) => p.id === row.id)?.status;
+      const prevRec = prev === "Received";
+      const nextRec = row.status === "Received";
+      if (prevRec !== nextRec || (nextRec && prev === undefined)) {
+        needsReceiptChange = true;
+        break;
+      }
+    }
+    if (!needsReceiptChange && purchase?.purchaseItems) {
+      const formIds = new Set(updatedFormData.map((r) => r.id).filter(Boolean));
+      for (const orig of purchase.purchaseItems) {
+        if (orig.status === "Received" && orig.id && !formIds.has(orig.id)) {
+          needsReceiptChange = true;
+          break;
+        }
+      }
+    }
+    if (
+      needsReceiptChange &&
+      !userHasPermission(user, permissions, PERMISSION_STOCK_OPS_WRITE)
+    ) {
+      toast.error(
+        "Changing received inventory requires stock_ops.write.",
+      );
+      return;
     }
 
     const payloadItems = updatedFormData.map((item) => {

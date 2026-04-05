@@ -49,7 +49,10 @@ import { useCreateOrderItemNoteMutation } from "@/redux/order/orderItemNotesApiS
 import { PaymentTransactions as PaymentTransactionsType } from "@/types/PaymentTransactions";
 import type { BomType } from "@/types/BomType";
 import { useGetLabToolsQuery } from "@/redux/labTools/labToolsApiSlice";
-import type { LabToolType } from "@/types/LabToolType";
+import {
+  computeOrderItemLabToolValues,
+  findMissingLabToolValues,
+} from "@/utils/labToolRx";
 import type { ItemBaseType } from "@/types/ItemBaseType";
 
 const date = new Date();
@@ -63,108 +66,6 @@ interface RxCalcRow {
   distanceSphereLeft: string;
   nearSphereLeft: string;
 }
-
-// Minimal shape needed for lab tool calculation
-interface OrderItemRxForToolsDetails {
-  sphereRight?: number;
-  sphereLeft?: number;
-  cylinderRight?: number;
-  cylinderLeft?: number;
-}
-
-// Convert a diopter or tool-style value into tool units (0.01 D steps).
-// Examples:
-//  - 1.25  -> 125
-//  - 125   -> 125
-const toToolUnitsDetails = (v: number | undefined): number | undefined => {
-  if (typeof v !== "number" || Number.isNaN(v)) return undefined;
-  // If magnitude is large (e.g. > 20 D), treat as already in tool units
-  return Math.abs(v) > 20 ? v : v * 100;
-};
-
-type ToolValuesPerEyeDetails = { right: number[]; left: number[] };
-
-const computeToolValuesDetails = (
-  row: OrderItemRxForToolsDetails,
-  base: ItemBaseType | undefined,
-): ToolValuesPerEyeDetails => {
-  const empty = { right: [], left: [] };
-  if (!base) return empty;
-
-  const baseNumeric = Number(base.baseCode);
-  if (!Number.isFinite(baseNumeric)) return empty;
-
-  const addTool =
-    typeof base.addPower === "number" && !Number.isNaN(base.addPower)
-      ? base.addPower * 10
-      : 0;
-  const baseTool = baseNumeric + addTool;
-  const right: number[] = [];
-  const left: number[] = [];
-
-  const rawSphR = row.sphereRight;
-  const rawCylR = row.cylinderRight;
-  const rawSphL = row.sphereLeft;
-  const rawCylL = row.cylinderLeft;
-
-  const sphRToolMag = toToolUnitsDetails(
-    typeof rawSphR === "number" ? Math.abs(rawSphR) : undefined,
-  );
-  const cylRToolMag = toToolUnitsDetails(
-    typeof rawCylR === "number" ? Math.abs(rawCylR) : undefined,
-  );
-  const sphLToolMag = toToolUnitsDetails(
-    typeof rawSphL === "number" ? Math.abs(rawSphL) : undefined,
-  );
-  const cylLToolMag = toToolUnitsDetails(
-    typeof rawCylL === "number" ? Math.abs(rawCylL) : undefined,
-  );
-
-  if (typeof rawSphR === "number" && typeof sphRToolMag === "number") {
-    const sphOffset = rawSphR < 0 ? sphRToolMag : -sphRToolMag;
-    const rSph = Math.round(baseTool + sphOffset);
-    right.push(rSph);
-    if (typeof cylRToolMag === "number" && cylRToolMag !== 0) {
-      right.push(Math.round(rSph + cylRToolMag));
-    }
-  }
-
-  if (typeof rawSphL === "number" && typeof sphLToolMag === "number") {
-    const sphOffset = rawSphL < 0 ? sphLToolMag : -sphLToolMag;
-    const lSph = Math.round(baseTool + sphOffset);
-    left.push(lSph);
-    if (typeof cylLToolMag === "number" && cylLToolMag !== 0) {
-      left.push(Math.round(lSph + cylLToolMag));
-    }
-  }
-
-  return { right, left };
-};
-
-const findMissingToolValuesDetails = (
-  toolValues: number[],
-  labTools: LabToolType[],
-): number[] => {
-  const missing: number[] = [];
-
-  toolValues.forEach((val) => {
-    const hasTool = labTools.some(
-      (tool) =>
-        typeof tool.baseCurveMin === "number" &&
-        typeof tool.baseCurveMax === "number" &&
-        typeof tool.quantity === "number" &&
-        val >= tool.baseCurveMin &&
-        val <= tool.baseCurveMax &&
-        tool.quantity > 0,
-    );
-
-    if (!hasTool) {
-      missing.push(val);
-    }
-  });
-
-  return Array.from(new Set(missing));
-};
 
 const tabs = [
   { id: "general", label: "General" },
@@ -2739,16 +2640,17 @@ export const OrderDetailsPage = () => {
                                               const basesForItem = itemBasesMap[data.itemId] || [];
                                               const baseForRow = basesForItem.find((b) => b.id === data.itemBaseId) as ItemBaseType | undefined;
 
-                                              const { right: rightValues, left: leftValues } = computeToolValuesDetails(data, baseForRow);
+                                              const { right: rightValues, left: leftValues } =
+                                                computeOrderItemLabToolValues(data, baseForRow);
                                               const labTools = labToolsData?.labTools ?? [];
                                               const hasAny = rightValues.length > 0 || leftValues.length > 0;
                                               if (!hasAny) return null;
 
                                               const missingRight = labTools.length
-                                                ? findMissingToolValuesDetails(rightValues, labTools)
+                                                ? findMissingLabToolValues(rightValues, labTools)
                                                 : [];
                                               const missingLeft = labTools.length
-                                                ? findMissingToolValuesDetails(leftValues, labTools)
+                                                ? findMissingLabToolValues(leftValues, labTools)
                                                 : [];
 
                                               const lineRight = rightValues.length > 0 ? `Right: ${rightValues.join(", ")}` : null;

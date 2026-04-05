@@ -3,7 +3,12 @@ import SelectOptions from "@/common/SelectOptions";
 import Tabs from "@/common/TabComponent";
 import Breadcrumb from "@/components/Breadcrumb";
 import ErroPage from "@/components/common/ErroPage";
-import { selectCurrentUser } from "@/redux/authSlice";
+import { selectCurrentUser, selectPermissions } from "@/redux/authSlice";
+import { userHasPermission } from "@/utils/permissions";
+import {
+  PERMISSION_SALES_WRITE,
+  PERMISSION_STOCK_OPS_WRITE,
+} from "@/constants/permissions";
 import { useGetAllItemsQuery, useLazyGetItemBasesQuery } from "@/redux/items/itemsApiSlice";
 import { useGetSaleQuery, useUpdateSaleMutation } from "@/redux/sale/saleApiSlice";
 import { ItemType } from "@/types/ItemType";
@@ -38,6 +43,7 @@ export const StoreRequestDetails = () => {
     const { data: sale, isLoading: isItemsLoading, error: itemsError, isError: itemsIsError } = useGetSaleQuery(id || '');
     const { data: items, isLoading } = useGetAllItemsQuery();
     const user = useSelector(selectCurrentUser);
+    const permissions = useSelector(selectPermissions);
     const [updateSale, { isLoading: isUpdating }] = useUpdateSaleMutation();
 
 
@@ -272,17 +278,22 @@ export const StoreRequestDetails = () => {
 
 
     const handleDeleteRow = (index: number) => {
-        const item = formData[index]; // Get the item at the specified index
+        const item = formData[index];
 
-        if (item.status === 'Stocked-out') {
-            // Show an alert if the status is 'Stocked-out'
-            toast.error("Cannot delete this item as it is 'Stocked-out'");
-        } else {
-            // If status is not 'Stocked-out', proceed with deletion
-            const list = [...formData];
-            list.splice(index, 1);
-            setFormData(list);
+        if (item.status === "Stocked-out") {
+            if (!userHasPermission(user, permissions, PERMISSION_SALES_WRITE)) {
+                toast.error("You are not authorized to change this store request.");
+                return;
+            }
+            if (!userHasPermission(user, permissions, PERMISSION_STOCK_OPS_WRITE)) {
+                toast.error("Deleting a stocked-out line requires stock_ops.write.");
+                return;
+            }
         }
+
+        const list = [...formData];
+        list.splice(index, 1);
+        setFormData(list);
     };
 
     const options = useMemo(
@@ -323,6 +334,40 @@ export const StoreRequestDetails = () => {
                 toast.error(`Please select base/ADD variant for "${selectedItem?.name || "item"}".`);
                 return;
             }
+        }
+
+        if (!userHasPermission(user, permissions, PERMISSION_SALES_WRITE)) {
+            toast.error("You are not authorized to update store requests.");
+            return;
+        }
+
+        let needsStockOutChange = false;
+        for (const row of formData) {
+            const prev = sale?.saleItems?.find((s) => s.id === row.id)?.status;
+            const prevOut = prev === "Stocked-out";
+            const nextOut = row.status === "Stocked-out";
+            if (prevOut !== nextOut || (nextOut && prev === undefined)) {
+                needsStockOutChange = true;
+                break;
+            }
+        }
+        if (!needsStockOutChange && sale?.saleItems) {
+            const formIds = new Set(formData.map((r) => r.id).filter(Boolean));
+            for (const orig of sale.saleItems) {
+                if (orig.status === "Stocked-out" && orig.id && !formIds.has(orig.id)) {
+                    needsStockOutChange = true;
+                    break;
+                }
+            }
+        }
+        if (
+            needsStockOutChange &&
+            !userHasPermission(user, permissions, PERMISSION_STOCK_OPS_WRITE)
+        ) {
+            toast.error(
+                "Changing stock-out (physical issue) requires stock_ops.write.",
+            );
+            return;
         }
 
         const payloadItems = formData.map((item) => {

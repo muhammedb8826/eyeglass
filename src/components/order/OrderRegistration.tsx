@@ -33,7 +33,10 @@ import { useGetAllNonStockServicesQuery } from "@/redux/services/nonStockService
 import { useGetAllDiscountsQuery } from "@/redux/discount/discountApiSlice";
 import { handleApiError } from "@/utils/errorHandling";
 import { useGetLabToolsQuery } from "@/redux/labTools/labToolsApiSlice";
-import type { LabToolType } from "@/types/LabToolType";
+import {
+  computeOrderItemLabToolValues,
+  findMissingLabToolValues,
+} from "@/utils/labToolRx";
 import type { ItemType } from "@/types/ItemType";
 
 interface RxCalcRow {
@@ -42,110 +45,6 @@ interface RxCalcRow {
   distanceSphereLeft: string;
   nearSphereLeft: string;
 }
-
-// Minimal shape needed for lab tool calculation
-interface OrderItemRxForTools {
-  sphereRight?: number;
-  sphereLeft?: number;
-  cylinderRight?: number;
-  cylinderLeft?: number;
-}
-
-// Convert a diopter or tool-style value into tool units (0.01 D steps).
-// Examples:
-//  - 1.25  -> 125
-//  - 125   -> 125
-const toToolUnits = (v: number | undefined): number | undefined => {
-  if (typeof v !== "number" || Number.isNaN(v)) return undefined;
-  // If magnitude is large (e.g. > 20 D), treat as already in tool units
-  return Math.abs(v) > 20 ? v : v * 100;
-};
-
-type ToolValuesPerEye = { right: number[]; left: number[] };
-
-const computeToolValues = (
-  row: OrderItemRxForTools,
-  base: ItemBaseType | undefined,
-): ToolValuesPerEye => {
-  const empty = { right: [], left: [] };
-  if (!base) return empty;
-
-  const baseNumeric = Number(base.baseCode);
-  if (!Number.isFinite(baseNumeric)) return empty;
-
-  // Base (tool units) = baseCode + ADD contribution (e.g. 350 + 25 for +2.50)
-  const addTool = typeof base.addPower === "number" && !Number.isNaN(base.addPower)
-    ? base.addPower * 10
-    : 0;
-  const baseTool = baseNumeric + addTool;
-  const right: number[] = [];
-  const left: number[] = [];
-
-  const rawSphR = row.sphereRight;
-  const rawCylR = row.cylinderRight;
-  const rawSphL = row.sphereLeft;
-  const rawCylL = row.cylinderLeft;
-
-  const sphRToolMag = toToolUnits(
-    typeof rawSphR === "number" ? Math.abs(rawSphR) : undefined,
-  );
-  const cylRToolMag = toToolUnits(
-    typeof rawCylR === "number" ? Math.abs(rawCylR) : undefined,
-  );
-  const sphLToolMag = toToolUnits(
-    typeof rawSphL === "number" ? Math.abs(rawSphL) : undefined,
-  );
-  const cylLToolMag = toToolUnits(
-    typeof rawCylL === "number" ? Math.abs(rawCylL) : undefined,
-  );
-
-  // Right eye:
-  if (typeof rawSphR === "number" && typeof sphRToolMag === "number") {
-    const sphOffset = rawSphR < 0 ? sphRToolMag : -sphRToolMag;
-    const rSph = Math.round(baseTool + sphOffset);
-    right.push(rSph);
-    if (typeof cylRToolMag === "number" && cylRToolMag !== 0) {
-      right.push(Math.round(rSph + cylRToolMag));
-    }
-  }
-
-  // Left eye:
-  if (typeof rawSphL === "number" && typeof sphLToolMag === "number") {
-    const sphOffset = rawSphL < 0 ? sphLToolMag : -sphLToolMag;
-    const lSph = Math.round(baseTool + sphOffset);
-    left.push(lSph);
-    if (typeof cylLToolMag === "number" && cylLToolMag !== 0) {
-      left.push(Math.round(lSph + cylLToolMag));
-    }
-  }
-
-  return { right, left };
-};
-
-const findMissingToolValues = (
-  toolValues: number[],
-  labTools: LabToolType[],
-): number[] => {
-  const missing: number[] = [];
-
-  toolValues.forEach((val) => {
-    const hasTool = labTools.some(
-      (tool) =>
-        typeof tool.baseCurveMin === "number" &&
-        typeof tool.baseCurveMax === "number" &&
-        typeof tool.quantity === "number" &&
-        val >= tool.baseCurveMin &&
-        val <= tool.baseCurveMax &&
-        tool.quantity > 0,
-    );
-
-    if (!hasTool) {
-      missing.push(val);
-    }
-  });
-
-  return Array.from(new Set(missing));
-};
 
 interface ItemOrderInfoResponse {
   pricing?: {
@@ -327,6 +226,12 @@ export const OrderRegistration = () => {
         }
 
         if (!pricing) {
+          const basesOnItem = item?.itemBases;
+          const hasBases =
+            Array.isArray(basesOnItem) && basesOnItem.length > 0;
+          if (hasBases && !itemBaseId) {
+            return;
+          }
           toast.error("No pricing configured for the selected lens and base.");
           return;
         }
@@ -553,22 +458,29 @@ export const OrderRegistration = () => {
         itemBaseId: undefined,
       };
 
-      if (selectedItem.id && !(selectedItem.id in itemBasesMap)) {
-        fetch(`/api/v1/items/${selectedItem.id}/bases`)
-          .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-          .then((bases: ItemBaseType[]) => {
-            setItemBasesMap((prev) => ({
-              ...prev,
-              [selectedItem.id]: bases,
-            }));
-          })
-          .catch(() => {
-            // Bases are optional; ignore errors
-          });
+      if (selectedItem.id) {
+        if (selectedItem.id in itemBasesMap) {
+          const bases = itemBasesMap[selectedItem.id];
+          if (!bases || bases.length === 0) {
+            fetchOrderInfoForRow(index, selectedItem.id);
+          }
+        } else {
+          fetch(`/api/v1/items/${selectedItem.id}/bases`)
+            .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+            .then((bases: ItemBaseType[]) => {
+              setItemBasesMap((prev) => ({
+                ...prev,
+                [selectedItem.id]: bases,
+              }));
+              if (!bases || bases.length === 0) {
+                fetchOrderInfoForRow(index, selectedItem.id);
+              }
+            })
+            .catch(() => {
+              fetchOrderInfoForRow(index, selectedItem.id);
+            });
+        }
       }
-
-      // Fetch order info (pricing, tool) for item-only lines
-      fetchOrderInfoForRow(index, selectedItem.id);
 
       setFormData(updatedFormData);
     }
@@ -1688,16 +1600,17 @@ export const OrderRegistration = () => {
                                             (() => {
                                               const basesForItem = itemBasesMap[data.itemId] || [];
                                               const baseForRow = basesForItem.find((b) => b.id === data.itemBaseId);
-                                              const { right: rightValues, left: leftValues } = computeToolValues(data, baseForRow);
+                                              const { right: rightValues, left: leftValues } =
+                                                computeOrderItemLabToolValues(data, baseForRow);
                                               const labTools = labToolsData?.labTools ?? [];
                                               const hasAny = rightValues.length > 0 || leftValues.length > 0;
                                               if (!hasAny) return null;
 
                                               const missingRight = labTools.length
-                                                ? findMissingToolValues(rightValues, labTools)
+                                                ? findMissingLabToolValues(rightValues, labTools)
                                                 : [];
                                               const missingLeft = labTools.length
-                                                ? findMissingToolValues(leftValues, labTools)
+                                                ? findMissingLabToolValues(leftValues, labTools)
                                                 : [];
 
                                               const lineRight =

@@ -125,7 +125,14 @@ function ItemBasesTab({ itemId, itemName }: { itemId: string; itemName?: string 
     <div className="p-7">
       <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
         {itemName && <span className="font-medium text-black dark:text-white">{itemName}</span>}
-        {" "}– Add base variants (e.g. base 350 + add +2.50 D). Add power in diopters (2.5 = +2.50 D).
+        {" "}
+        — Each <strong className="text-black dark:text-white">variant</strong> is one{" "}
+        <strong className="text-black dark:text-white">base code</strong> (supplier curve / tool scale,
+        e.g. 350, 575) plus <strong className="text-black dark:text-white">blank add power</strong> in{" "}
+        <strong className="text-black dark:text-white">diopters</strong> on the lens SKU (e.g. 2.5 =
+        +2.50&nbsp;D). That matches API <code className="text-xs">ItemBase.baseCode</code> +{" "}
+        <code className="text-xs">ItemBase.addPower</code>. Patient reading <strong>ADD</strong> on a
+        prescription is entered on <strong>order lines</strong>, not here.
       </p>
       <div className="mb-6 flex flex-wrap items-end gap-4">
         <div>
@@ -167,7 +174,7 @@ function ItemBasesTab({ itemId, itemName }: { itemId: string; itemName?: string 
               <tr className="bg-gray-2 text-left dark:bg-meta-4">
                 <th className="py-3 px-4 font-medium text-black dark:text-white">Base code</th>
                 <th className="py-3 px-4 font-medium text-black dark:text-white">Add power (D)</th>
-                <th className="py-3 px-4 font-medium text-black dark:text-white">Display</th>
+                <th className="py-3 px-4 font-medium text-black dark:text-white">Variant label</th>
                 <th className="py-3 px-4 font-medium text-black dark:text-white">Actions</th>
               </tr>
             </thead>
@@ -224,7 +231,10 @@ function ItemBasesTab({ itemId, itemName }: { itemId: string; itemName?: string 
                         <td className="py-2 px-4 text-black dark:text-white">{b.baseCode}</td>
                         <td className="py-2 px-4 text-black dark:text-white">{b.addPower}</td>
                         <td className="py-2 px-4 text-gray-600 dark:text-gray-400">
-                          {b.baseCode}+{Math.round(b.addPower * 10)}
+                          {b.baseCode}
+                          {typeof b.addPower === "number" && !Number.isNaN(b.addPower)
+                            ? `^+${b.addPower}`
+                            : ""}
                         </td>
                         <td className="py-2 px-4">
                           <button
