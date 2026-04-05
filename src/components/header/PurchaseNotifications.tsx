@@ -6,7 +6,10 @@ import { useParams } from "react-router-dom";
 import { PurchaseNotificationTable } from "./PurchaseNotificationTable";
 import { selectCurrentUser, selectPermissions } from "@/redux/authSlice";
 import { userHasPermission } from "@/utils/permissions";
-import { PERMISSION_PURCHASES_WRITE } from "@/constants/permissions";
+import {
+  PERMISSION_APPROVALS_MANAGE,
+  PERMISSION_PURCHASES_WRITE,
+} from "@/constants/permissions";
 import { useGetPurchaseItemsQuery, useUpdatePurchaseItemMutation } from "@/redux/purchase/purchaseApiSlice";
 import { useCreatePurchaseItemNoteMutation } from "@/redux/purchase/purchaseItemNotesApiSlice";
 import { PurchaseItem } from "@/types/PurchaseItem";
@@ -105,13 +108,13 @@ export const PurchaseNotifications = () => {
     const handleAction = (index: number) => setShowPopover(prevIndex => (prevIndex === index ? null : index));
 
 
-    const handleUpdatePurchaseItem = async (
-        id: string,
-        status: string,
-        index: number,
-        authorized: () => boolean,
-    ) => {
-        if (!authorized()) {
+    const handleUpdatePurchaseItem = async (id: string, status: string, index: number) => {
+        if (status === "Approved") {
+            if (!userHasPermission(user, permissions, PERMISSION_APPROVALS_MANAGE)) {
+                toast.error("You are not authorized to approve purchase lines.");
+                return;
+            }
+        } else if (!userHasPermission(user, permissions, PERMISSION_PURCHASES_WRITE)) {
             toast.error("You are not authorized to edit this order");
             return;
         }
@@ -148,9 +151,6 @@ export const PurchaseNotifications = () => {
             handleAction(index);
         }
     };
-
-    const canMutatePurchases = () =>
-        userHasPermission(user, permissions, PERMISSION_PURCHASES_WRITE);
 
     const handleUpdateNote = async (newNote: PurchaseItemNoteType, index: number) => {
         if (newNote.text?.trim()) {
@@ -192,7 +192,7 @@ export const PurchaseNotifications = () => {
                         title={`Pending approval purchases`}
                         orders={pendingApprovalPurchases}
                         handleAction={handleAction}
-                        handleModalOpen={(id, status, index) => handleUpdatePurchaseItem(id, status, index, canMutatePurchases)}
+                        handleModalOpen={(id, status, index) => handleUpdatePurchaseItem(id, status, index)}
                         handleUpdateNote={handleUpdateNote}
                         showPopover={showPopover}
                         popoverRef={pendingApprovalPopoverRef}
@@ -208,7 +208,7 @@ export const PurchaseNotifications = () => {
                         title={`Pending approval orders`}
                         orders={receiveReadyPurchases}
                         handleAction={handleAction}
-                        handleModalOpen={(id, status, index) => handleUpdatePurchaseItem(id, status, index, canMutatePurchases)}
+                        handleModalOpen={(id, status, index) => handleUpdatePurchaseItem(id, status, index)}
                         handleUpdateNote={handleUpdateNote}
                         showPopover={showPopover}
                         popoverRef={receiveReadyPopoverRef}

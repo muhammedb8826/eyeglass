@@ -12,6 +12,9 @@ export const PERMISSION_ORDERS_WRITE = "orders.write";
 export const PERMISSION_ORDER_ITEMS_READ = "order_items.read";
 export const PERMISSION_ORDER_ITEMS_WRITE = "order_items.write";
 
+/** Set or revoke Approved / admin-approval on orders, purchase lines, store request (sale) lines. ADMIN bypasses via matrix. */
+export const PERMISSION_APPROVALS_MANAGE = "approvals.manage";
+
 /** Line status InProgress / Ready (lab / production). */
 export const PERMISSION_PRODUCTION_WRITE = "production.write";
 

@@ -6,7 +6,10 @@ import { useParams } from "react-router-dom";
 import { StoreRequestNotificationTable } from "./StoreRequestNotificationTable";
 import { selectCurrentUser, selectPermissions } from "@/redux/authSlice";
 import { userHasPermission } from "@/utils/permissions";
-import { PERMISSION_SALES_WRITE } from "@/constants/permissions";
+import {
+  PERMISSION_APPROVALS_MANAGE,
+  PERMISSION_SALES_WRITE,
+} from "@/constants/permissions";
 import { useCreateSaleItemNoteMutation, useGetSaleItemsQuery, useUpdateSaleItemMutation } from "@/redux/sale/saleApiSlice";
 import { SaleItemNoteType } from "@/types/SaleItemNoteType";
 import ErroPage from "../common/ErroPage";
@@ -89,13 +92,13 @@ export const StoreRequestNotifications = () => {
     const handleAction = (index: number) => setShowPopover(prevIndex => (prevIndex === index ? null : index));
 
 
-    const handleUpdateSaleItem = async (
-        id: string,
-        status: string,
-        index: number,
-        authorized: () => boolean,
-    ) => {
-        if (!authorized()) {
+    const handleUpdateSaleItem = async (id: string, status: string, index: number) => {
+        if (status === "Approved") {
+            if (!userHasPermission(user, permissions, PERMISSION_APPROVALS_MANAGE)) {
+                toast.error("You are not authorized to approve store requests.");
+                return;
+            }
+        } else if (!userHasPermission(user, permissions, PERMISSION_SALES_WRITE)) {
             toast.error("You are not authorized to edit this order");
             return;
         }
@@ -134,9 +137,6 @@ export const StoreRequestNotifications = () => {
             handleAction(index);
         }
     };
-
-
-    const canMutateSales = () => userHasPermission(user, permissions, PERMISSION_SALES_WRITE);
 
 
     const handleUpdateNote = async (newNote: SaleItemNoteType, index: number) => {
@@ -180,7 +180,7 @@ export const StoreRequestNotifications = () => {
                         title={`Pending approval requests`}
                         orders={approveReadyRequests}
                         handleAction={handleAction}
-                        handleModalOpen={(id, status, index) => handleUpdateSaleItem(id, status, index, canMutateSales)}
+                        handleModalOpen={(id, status, index) => handleUpdateSaleItem(id, status, index)}
                         handleUpdateNote={handleUpdateNote}
                         showPopover={showPopover}
                         popoverRef={approveReadyPopoverRef}
@@ -196,7 +196,7 @@ export const StoreRequestNotifications = () => {
                         title={`Pending stock out`}
                         orders={pendingStockOutRequests}
                         handleAction={handleAction}
-                        handleModalOpen={(id, status, index) => handleUpdateSaleItem(id, status, index, canMutateSales)}
+                        handleModalOpen={(id, status, index) => handleUpdateSaleItem(id, status, index)}
                         handleUpdateNote={handleUpdateNote}
                         showPopover={showPopover}
                         popoverRef={pendingStockOutPopoverRef}

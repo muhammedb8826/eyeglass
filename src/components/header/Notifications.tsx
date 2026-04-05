@@ -9,6 +9,7 @@ import { selectCurrentUser, selectPermissions } from "@/redux/authSlice";
 import { userHasAnyPermission, userHasPermission } from "@/utils/permissions";
 import {
   ADMIN_ROLE,
+  PERMISSION_APPROVALS_MANAGE,
   PERMISSION_ORDER_ITEMS_WRITE,
   PERMISSION_ORDERS_READ,
   PERMISSION_ORDERS_WRITE,
@@ -337,7 +338,7 @@ export const Notifications = () => {
   };
 
   const permissionCheckers = {
-    pending: () => userHasPermission(user, permissions, PERMISSION_ORDER_ITEMS_WRITE),
+    pending: () => userHasPermission(user, permissions, PERMISSION_APPROVALS_MANAGE),
     inProgress: () =>
       userHasAnyPermission(user, permissions, [
         PERMISSION_PRODUCTION_WRITE,

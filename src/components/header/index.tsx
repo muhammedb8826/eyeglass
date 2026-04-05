@@ -57,7 +57,7 @@ const Header = (props: {
 
           <NavLink className="block flex-shrink-0 lg:hidden" to="/">
             {/* <img src={LogoIcon} alt="Logo" /> */}
-            <span className="font-bold">IAN PLC</span>
+            <span className="font-bold">NDS PLC</span>
           {/* <span className="text-[#f01d52]">omino</span>{" "} */}
           </NavLink>
         </div>
