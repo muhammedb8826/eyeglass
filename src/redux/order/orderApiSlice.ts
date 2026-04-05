@@ -123,7 +123,7 @@ export const orderApiSlice = apiSlice.injectEndpoints({
                 method: 'POST',
                 body: formData
             }),
-            invalidatesTags: ['Orders']
+            invalidatesTags: ['Orders', 'Bincard']
         }),
         updateOrder: builder.mutation({
             query: (formData) => ({
@@ -131,14 +131,21 @@ export const orderApiSlice = apiSlice.injectEndpoints({
                 method: 'PATCH',
                 body: formData
             }),
-            invalidatesTags: (_result, _error, formData) => [{ type: 'Orders', id: formData.id }]
+            invalidatesTags: (_result, _error, formData) => [
+                { type: 'Orders', id: formData.id },
+                'Bincard',
+            ]
         }),
         deleteOrder: builder.mutation<OrderType, string>({
             query: (id) => ({
                 url: `/orders/${id}`,
                 method: 'DELETE'
             }),
-            invalidatesTags: (_result, _error, id) => [{ type: 'Orders', id }, { type: 'Orders', id: 'LIST' }]
+            invalidatesTags: (_result, _error, id) => [
+                { type: 'Orders', id },
+                { type: 'Orders', id: 'LIST' },
+                'Bincard',
+            ]
         }),
         getOrderItems: builder.query<OrderItemType[], string>({
             query: (orderId) => ({
@@ -176,7 +183,7 @@ export const orderApiSlice = apiSlice.injectEndpoints({
                 method: 'POST',
                 body: formData
             }),
-            invalidatesTags: ['Orders']
+            invalidatesTags: ['Orders', 'Bincard']
         }),
         updateOrderItem: builder.mutation({
             query: (formData) => ({
@@ -187,6 +194,7 @@ export const orderApiSlice = apiSlice.injectEndpoints({
             invalidatesTags: (_result, _error, formData) => [
                 { type: 'Orders', id: formData.orderId }, // Invalidate the related Order
                 { type: 'Orders', id: formData.id },      // Invalidate the updated OrderItem
+                'Bincard',
             ],
         }),
         deleteOrderItem: builder.mutation<OrderItemType, string>({
@@ -194,7 +202,11 @@ export const orderApiSlice = apiSlice.injectEndpoints({
                 url: `/order-items/${id}`,
                 method: 'DELETE'
             }),
-            invalidatesTags: (_result, _error, id) => [{ type: 'Orders', id }, { type: 'Orders', id: 'LIST' }]
+            invalidatesTags: (_result, _error, id) => [
+                { type: 'Orders', id },
+                { type: 'Orders', id: 'LIST' },
+                'Bincard',
+            ]
         }),
         calculateFilteredProfit: builder.query<ProfitResponse, { startDate?: string; endDate?: string; search?: string; item1?: string; item2?: string; item3?: string }>({
             query: ({ startDate, endDate, search, item1, item2, item3 }) => {

@@ -7,7 +7,10 @@ interface ItemResponse {
     total: number
 }
 
-type ItemsTag = { type: 'Items'; id: string | 'LIST' } | 'Items';
+type ItemsTag =
+  | { type: 'Items'; id: string | 'LIST' }
+  | 'Items'
+  | 'Bincard';
 
 export const itemsApiSlice = apiSlice.injectEndpoints({
     endpoints: builder => ({
@@ -77,7 +80,7 @@ export const itemsApiSlice = apiSlice.injectEndpoints({
                 method: 'POST',
                 body: formData
             }),
-            invalidatesTags: ['Items']
+            invalidatesTags: ['Items', 'Bincard']
         }),
         updateItem: builder.mutation({
             query: (formData)=>({
@@ -87,7 +90,11 @@ export const itemsApiSlice = apiSlice.injectEndpoints({
             }),
             invalidatesTags: (_result, _error, formData) => {
                 const id = formData.id as string | undefined;
-                const baseTags: ItemsTag[] = ['Items', { type: 'Items', id: 'LIST' }];
+                const baseTags: ItemsTag[] = [
+                    'Items',
+                    { type: 'Items', id: 'LIST' },
+                    'Bincard',
+                ];
                 return id ? [...baseTags, { type: 'Items', id }] : baseTags;
             },
         }),
@@ -96,7 +103,11 @@ export const itemsApiSlice = apiSlice.injectEndpoints({
                 url: `/items/${id}`,
                 method: 'DELETE'
             }),
-            invalidatesTags: (_result, _error, id) => [{ type: 'Items', id }, { type: 'Items', id: 'LIST' }]
+            invalidatesTags: (_result, _error, id) => [
+                { type: 'Items', id },
+                { type: 'Items', id: 'LIST' },
+                'Bincard',
+            ]
         })
     }),
 })

@@ -36,6 +36,7 @@ import UnitCategory from "./components/setting/UnitCategory";
 import UnitOfMeasurements from "./components/setting/UnitOfMeasurements";
 import { ItemRegistration } from "./pages/inventory/ItemRegistration";
 import { ItemEdit } from "./pages/inventory/ItemEdit";
+import { ItemBincardPage } from "./pages/inventory/ItemBincardPage";
 import { SalesPartnerList } from "./components/commission/SalesPartnerList";
 import { OrderDetailsPage } from "./components/order/OrderDetailsPage";
 import { Pricings } from "./components/setting/Pricings";
@@ -336,6 +337,22 @@ const App = () => {
             element={
               <RequirePermission permission={PERMISSION_BINCARD_READ}>
                 <Stock />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="inventory/bincard"
+            element={
+              <RequirePermission permission={PERMISSION_BINCARD_READ}>
+                <ItemBincardPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="inventory/bincard/:itemId"
+            element={
+              <RequirePermission permission={PERMISSION_BINCARD_READ}>
+                <ItemBincardPage />
               </RequirePermission>
             }
           />

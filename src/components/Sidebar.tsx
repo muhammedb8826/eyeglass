@@ -74,6 +74,11 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }: SidebarProps) => {
       permission: PERMISSION_BINCARD_READ,
     },
     {
+      to: "/dashboard/inventory/bincard",
+      label: "Bincard",
+      permission: PERMISSION_BINCARD_READ,
+    },
+    {
       to: "/dashboard/inventory/store-request",
       label: "Store Request",
       permission: PERMISSION_SALES_READ,

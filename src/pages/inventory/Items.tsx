@@ -5,7 +5,7 @@ import Breadcrumb from "../../components/Breadcrumb";
 import Loader from "@/common/Loader";
 import { Link, NavLink } from "react-router-dom";
 import ErroPage from "@/components/common/ErroPage";
-import { MdDelete, MdOutlineProductionQuantityLimits } from "react-icons/md";
+import { MdDelete, MdOutlineProductionQuantityLimits, MdOutlineReceiptLong } from "react-icons/md";
 import Swal from "sweetalert2";
 import { useDeleteItemsMutation, useGetItemsQuery } from "@/redux/items/itemsApiSlice";
 import Pagination from "@/common/Pagination";
@@ -165,6 +165,15 @@ export const Items = () => {
                   >
                     <FaRegEdit />
                     Edit
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to={`/dashboard/inventory/bincard/${item.id}`}
+                    className="flex items-center gap-3.5 text-sm font-medium duration-300 ease-in-out hover:text-primary lg:text-base"
+                  >
+                    <MdOutlineReceiptLong />
+                    Bincard
                   </NavLink>
                 </li>
                 <li>

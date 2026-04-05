@@ -42,7 +42,7 @@ export const saleApiSlice = apiSlice.injectEndpoints({
                 body: formData
             }),
             // Store sales update linked order lines (e.g. storeRequestStatus → Issued)
-            invalidatesTags: ['Sales', 'Orders']
+            invalidatesTags: ['Sales', 'Orders', 'Bincard']
         }),
         updateSale: builder.mutation({
             query: (formData) => ({
@@ -53,6 +53,7 @@ export const saleApiSlice = apiSlice.injectEndpoints({
             invalidatesTags: (_result, _error, formData) => [
                 { type: 'Sales', id: formData.id },
                 'Orders',
+                'Bincard',
             ]
         }),
         deleteSale: builder.mutation({
@@ -64,6 +65,7 @@ export const saleApiSlice = apiSlice.injectEndpoints({
                 { type: 'Sales', id },
                 { type: 'Sales', id: 'LIST' },
                 'Orders',
+                'Bincard',
             ]
         }),
         getSaleItems: builder.query<SaleItem[], string>({
@@ -79,7 +81,7 @@ export const saleApiSlice = apiSlice.injectEndpoints({
                 method: 'POST',
                 body: formData
             }),
-            invalidatesTags: ['Sales', 'Orders']
+            invalidatesTags: ['Sales', 'Orders', 'Bincard']
         }),
         updateSaleItem: builder.mutation({
             query: (formData) => ({
@@ -90,6 +92,7 @@ export const saleApiSlice = apiSlice.injectEndpoints({
             invalidatesTags: (_result, _error, formData) => [
                 { type: 'Sales', id: formData.id },
                 'Orders',
+                'Bincard',
             ]
         }),
         deleteSaleItem: builder.mutation<SaleItem, string>({
@@ -101,6 +104,7 @@ export const saleApiSlice = apiSlice.injectEndpoints({
                 { type: 'Sales', id: itemId },
                 { type: 'Sales', id: 'LIST' },
                 'Orders',
+                'Bincard',
             ]
         }),
         getSaleItemNotes: builder.query<SaleItemNoteType[], string>({

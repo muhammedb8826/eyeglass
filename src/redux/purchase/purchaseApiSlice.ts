@@ -57,7 +57,7 @@ export const purchaseApiSlice = apiSlice.injectEndpoints({
                 method: 'POST',
                 body: formData
             }),
-            invalidatesTags: ['Purchases']
+            invalidatesTags: ['Purchases', 'Bincard']
         }),
         updatePurchase: builder.mutation({
             query: (formData) => ({
@@ -65,14 +65,21 @@ export const purchaseApiSlice = apiSlice.injectEndpoints({
                 method: 'PATCH',
                 body: formData
             }),
-            invalidatesTags: (_result, _error, formData) => [{ type: 'Purchases', id: formData.id }]
+            invalidatesTags: (_result, _error, formData) => [
+                { type: 'Purchases', id: formData.id },
+                'Bincard',
+            ]
         }),
         deletePurchase: builder.mutation<PurchaseType, string>({
             query: (id) => ({
                 url: `/purchases/${id}`,
                 method: 'DELETE'
             }),
-            invalidatesTags: (_result, _error, id) => [{ type: 'Purchases', id }, { type: 'Purchases', id: 'LIST' }]
+            invalidatesTags: (_result, _error, id) => [
+                { type: 'Purchases', id },
+                { type: 'Purchases', id: 'LIST' },
+                'Bincard',
+            ]
         }),
         getPurchaseItems: builder.query<PurchaseItem[], string>({
             query: (purchaseId) => ({
@@ -110,7 +117,7 @@ export const purchaseApiSlice = apiSlice.injectEndpoints({
                 method: 'POST',
                 body: formData
             }),
-            invalidatesTags: ['Purchases']
+            invalidatesTags: ['Purchases', 'Bincard']
         }),
         updatePurchaseItem: builder.mutation({
             query: (formData) => ({
@@ -118,14 +125,21 @@ export const purchaseApiSlice = apiSlice.injectEndpoints({
                 method: 'PATCH',
                 body: formData
             }),
-            invalidatesTags: (_result, _error, formData) => [{ type: 'Purchases', id: formData.id }]
+            invalidatesTags: (_result, _error, formData) => [
+                { type: 'Purchases', id: formData.id },
+                'Bincard',
+            ]
         }),
         deletePurchaseItem: builder.mutation<PurchaseItem, string>({
             query: (id) => ({
                 url: `/purchase-items/${id}`,
                 method: 'DELETE'
             }),
-            invalidatesTags: (_result, _error, id) => [{ type: 'Purchases', id }, { type: 'Purchases', id: 'LIST' }]
+            invalidatesTags: (_result, _error, id) => [
+                { type: 'Purchases', id },
+                { type: 'Purchases', id: 'LIST' },
+                'Bincard',
+            ]
         })
     }),
     overrideExisting: false

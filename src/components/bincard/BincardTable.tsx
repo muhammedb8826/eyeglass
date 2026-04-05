@@ -40,11 +40,17 @@ export const BincardTable = ({
   useEffect(() => {
     setPage(1);
   }, [itemId]);
-  const { data, isLoading, isError } = useGetBincardByItemQuery({
-    itemId,
-    page,
-    limit: pageSize,
-  });
+  const { data, isLoading, isError } = useGetBincardByItemQuery(
+    {
+      itemId,
+      page,
+      limit: pageSize,
+    },
+    {
+      refetchOnFocus: true,
+      refetchOnReconnect: true,
+    },
+  );
 
   if (!itemId) return null;
 
