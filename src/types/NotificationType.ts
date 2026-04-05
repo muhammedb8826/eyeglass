@@ -1,3 +1,7 @@
+/**
+ * Backend fan-out notifications (see integration guide §9.6).
+ * `data` often includes `orderId`, `saleId`, `purchaseId`, `itemId`, `orderItemId`, etc. for deep links.
+ */
 export type NotificationType = {
   id: string;
   recipientId: string;

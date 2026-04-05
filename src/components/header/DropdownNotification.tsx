@@ -4,20 +4,28 @@ import { useSelector } from "react-redux";
 import { RootState } from "@/redux/store";
 import {
   useGetNotificationsQuery,
-  useGetUnreadCountQuery,
   useMarkAllNotificationsReadMutation,
   useMarkNotificationReadMutation,
 } from "@/redux/notifications/notificationsApiSlice";
+import {
+  getNotificationDeepLink,
+  notificationTypeLabel,
+} from "@/utils/notificationDeepLink";
+
+/** Poll unread list + total while logged in (same source as badge count). */
+const UNREAD_POLL_MS = 8_000;
+const PREVIEW_LIMIT = 10;
+
+/** Same digits as bell badge; cap display at 99+. */
+function formatUnreadBadgeCount(n: number): string {
+  if (n <= 0) return "0";
+  return n > 99 ? "99+" : String(n);
+}
+
+const BADGE_COUNT_MIN_W = "min-w-[2rem]";
 
 const DropdownNotification = () => {
   const accessToken = useSelector((state: RootState) => state.auth.accessToken);
-
-  const { data: unreadData } = useGetUnreadCountQuery(undefined, {
-    skip: !accessToken,
-    pollingInterval: 60_000,
-    refetchOnFocus: true,
-    refetchOnReconnect: true,
-  });
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const triggerRef = useRef<HTMLAnchorElement>(null);
@@ -28,19 +36,24 @@ const DropdownNotification = () => {
     isFetching: listFetching,
     isError: listError,
   } = useGetNotificationsQuery(
-    { page: 1, limit: 10, status: "all" },
+    { page: 1, limit: PREVIEW_LIMIT, status: "unread" },
     {
-      skip: !accessToken || !dropdownOpen,
+      skip: !accessToken,
+      pollingInterval: UNREAD_POLL_MS,
       refetchOnMountOrArgChange: true,
-    }
+      refetchOnFocus: true,
+      refetchOnReconnect: true,
+    },
   );
 
   const [markRead] = useMarkNotificationReadMutation();
   const [markAllRead, { isLoading: markingAll }] =
     useMarkAllNotificationsReadMutation();
 
-  const unread = unreadData?.unread ?? 0;
+  /** Server total unread — same number as bell badge and panel header. */
+  const unreadTotal = listData?.total ?? 0;
   const items = listData?.items ?? [];
+  const badgeText = formatUnreadBadgeCount(unreadTotal);
 
   useEffect(() => {
     const clickHandler = ({ target }: MouseEvent) => {
@@ -79,12 +92,15 @@ const DropdownNotification = () => {
           setDropdownOpen((open) => !open);
         }}
         to="#"
-        aria-label="Notifications"
+        aria-label={`Notifications${unreadTotal > 0 ? `, ${unreadTotal} unread` : ""}`}
         className="relative flex h-8.5 w-8.5 items-center justify-center rounded-full border-[0.5px] border-stroke bg-gray hover:text-primary dark:border-strokedark dark:bg-meta-4 dark:text-white"
       >
-        {unread > 0 && (
-          <span className="absolute -right-1 -top-1 z-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-meta-1 px-1 text-[10px] font-semibold leading-none text-white">
-            {unread > 99 ? "99+" : unread}
+        {unreadTotal > 0 && (
+          <span
+            className={`absolute -right-1 -top-1 z-1 flex h-5 ${BADGE_COUNT_MIN_W} items-center justify-center rounded-full bg-meta-1 px-1 text-[10px] font-semibold tabular-nums leading-none text-white`}
+            title={`${unreadTotal} unread`}
+          >
+            {badgeText}
           </span>
         )}
 
@@ -110,10 +126,20 @@ const DropdownNotification = () => {
         }`}
       >
         <div className="flex items-center justify-between gap-2 px-4.5 py-3">
-          <h5 className="text-sm font-medium text-bodydark2">Notifications</h5>
+          <h5 className="text-sm font-medium text-bodydark2">
+            <span className="text-black dark:text-white">Unread</span>
+            {unreadTotal > 0 && (
+              <span
+                className={`ml-1.5 inline-flex ${BADGE_COUNT_MIN_W} justify-center rounded bg-meta-1/15 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-meta-1 dark:bg-meta-1/25 dark:text-meta-1`}
+                title={`${unreadTotal} unread (same as bell)`}
+              >
+                {badgeText}
+              </span>
+            )}
+          </h5>
           <button
             type="button"
-            disabled={unread === 0 || markingAll}
+            disabled={unreadTotal === 0 || markingAll}
             onClick={() => markAllRead()}
             className="text-xs font-medium text-primary disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -137,41 +163,72 @@ const DropdownNotification = () => {
           {!listFetching && !listError && items.length === 0 && (
             <li className="border-t border-stroke px-4.5 py-3 dark:border-strokedark">
               <p className="text-sm text-black dark:text-white">
-                No notifications yet
+                No unread notifications
               </p>
             </li>
           )}
 
           {!listFetching &&
             !listError &&
-            items.map((n) => (
-              <li key={n.id}>
-                <button
-                  type="button"
-                  className={`flex w-full flex-col gap-1 border-t border-stroke px-4.5 py-3 text-left hover:bg-gray-2 dark:border-strokedark dark:hover:bg-meta-4 ${
-                    !n.isRead ? "bg-gray-2/60 dark:bg-meta-4/40" : ""
-                  }`}
-                  onClick={() => {
-                    if (!n.isRead) {
-                      void markRead(n.id);
-                    }
-                  }}
-                >
+            items.map((n) => {
+              const href = getNotificationDeepLink(n);
+              const rowClass =
+                "flex w-full flex-col gap-1 border-t border-stroke px-4.5 py-3 text-left bg-gray-2/60 hover:bg-gray-2 dark:border-strokedark dark:bg-meta-4/40 dark:hover:bg-meta-4";
+              const inner = (
+                <>
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-medium text-black dark:text-white">
                       {n.title}
                     </p>
                     <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-primary">
-                      {n.type}
+                      {notificationTypeLabel(n.type)}
                     </span>
                   </div>
                   <p className="text-xs text-bodydark2">{n.message}</p>
                   <p className="text-[11px] text-bodydark2">
                     {new Date(n.createdAt).toLocaleString()}
                   </p>
-                </button>
-              </li>
-            ))}
+                </>
+              );
+              return (
+                <li key={n.id}>
+                  {href ? (
+                    <Link
+                      to={href}
+                      className={rowClass}
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        void markRead(n.id);
+                      }}
+                    >
+                      {inner}
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      className={rowClass}
+                      onClick={() => {
+                        void markRead(n.id);
+                      }}
+                    >
+                      {inner}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          {!listFetching && unreadTotal > items.length && (
+            <li className="border-t border-stroke px-4.5 py-2 text-center text-xs text-bodydark2 dark:border-strokedark">
+              +{unreadTotal - items.length} more unread — open{" "}
+              <Link
+                to="/dashboard/in-app-notifications"
+                className="font-medium text-primary hover:underline"
+                onClick={() => setDropdownOpen(false)}
+              >
+                View all
+              </Link>
+            </li>
+          )}
         </ul>
 
         <div className="border-t border-stroke px-4.5 py-3 dark:border-strokedark">

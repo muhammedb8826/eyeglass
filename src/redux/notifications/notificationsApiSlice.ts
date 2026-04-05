@@ -17,7 +17,11 @@ export const notificationsApiSlice = apiSlice.injectEndpoints({
       query: ({ page = 1, limit = 20, status = "all" }) => ({
         url: "/notifications",
         method: "GET",
-        params: { page, limit, status },
+        params: {
+          page,
+          limit: Math.min(100, Math.max(1, limit)),
+          status,
+        },
       }),
       providesTags: (result): NotificationsTag[] =>
         result
