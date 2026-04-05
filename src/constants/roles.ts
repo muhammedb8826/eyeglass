@@ -10,6 +10,7 @@ export const APP_ROLES = [
   "PRODUCTION",
   "STORE_KEEPER",
   "QUALITY_CONTROL",
+  "PURCHASER",
 ] as const;
 
 export type AppRole = (typeof APP_ROLES)[number];

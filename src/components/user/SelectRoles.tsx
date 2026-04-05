@@ -13,6 +13,7 @@ const ROLE_LABELS: Record<string, string> = {
   PRODUCTION: "Production",
   STORE_KEEPER: "Store keeper",
   QUALITY_CONTROL: "Quality control",
+  PURCHASER: "Purchaser",
 };
 
 interface SelectRolesProps {
