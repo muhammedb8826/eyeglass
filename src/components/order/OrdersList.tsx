@@ -334,6 +334,16 @@ const OrdersList = () => {
             {order.status}
           </span>
         )}
+        {order.status === "SentToShop" && (
+          <span className="inline-flex rounded-full bg-meta-7 bg-opacity-10 py-1 px-3 text-sm font-medium text-meta-7">
+            Sent to shop
+          </span>
+        )}
+        {order.status === "ShopReceived" && (
+          <span className="inline-flex rounded-full bg-meta-8 bg-opacity-10 py-1 px-3 text-sm font-medium text-meta-8">
+            Shop received
+          </span>
+        )}
         {order.status === "InProgress" && (
           <span className="inline-flex rounded-full text-white py-1 px-3 bg-opacity-10 text-sm font-medium bg-gradient-to-br from-danger to-warning hover:bg-gradient-to-bl focus:ring-4 focus:outline-none focus:ring-pink-200 dark:focus:ring-pink-800">
             {order.status}
@@ -539,6 +549,8 @@ const OrdersList = () => {
                       <option value="Processing">Processing</option>
                       <option value="InProgress">In progress</option>
                       <option value="Ready">Ready</option>
+                      <option value="SentToShop">Sent to shop</option>
+                      <option value="ShopReceived">Shop received</option>
                       <option value="Delivered">Delivered</option>
                       <option value="Cancelled">Cancelled</option>
                       <option value="Pending,Processing">

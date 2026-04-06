@@ -541,7 +541,12 @@ export const ItemEdit = () => {
 
             {activeTabId === 'bincard' && id && (
               <div className="p-7">
-                <BincardTable itemId={id} itemName={data?.name} pageSize={20} />
+                <BincardTable
+                  itemId={id}
+                  itemName={data?.name}
+                  itemBases={data?.itemBases}
+                  pageSize={20}
+                />
               </div>
             )}
 

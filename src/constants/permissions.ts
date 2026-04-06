@@ -12,7 +12,20 @@ export const PERMISSION_ORDERS_WRITE = "orders.write";
 export const PERMISSION_ORDER_ITEMS_READ = "order_items.read";
 export const PERMISSION_ORDER_ITEMS_WRITE = "order_items.write";
 
-/** Set or revoke Approved / admin-approval on orders, purchase lines, store request (sale) lines. ADMIN bypasses via matrix. */
+/**
+ * Set or revoke **Approved** / admin-approval on:
+ * - **Orders** (header + lines)
+ * - **Purchase orders** (header + lines when the line status label is `Approved`)
+ * - **Store requests** (`sales` / `sale_items` when the approval **label** changes)
+ *
+ * **`ADMIN`** can always approve without this row (UI: `userHasPermission` treats ADMIN as allowed;
+ * API enforces superuser separately).
+ *
+ * **Exception:** moving an already **`Approved`** store line to **`Stocked-out`** (physical issue)
+ * is **not** an approval change — use **`stock_ops.write`** plus **`sales.write`** only (see
+ * `PERMISSION_STOCK_OPS_WRITE`). Automated flows (e.g. QC remake keeping approval, auto store
+ * requests with status `Requested`) do **not** require `approvals.manage`.
+ */
 export const PERMISSION_APPROVALS_MANAGE = "approvals.manage";
 
 /** Line status InProgress / Ready (lab / production). */
@@ -55,7 +68,11 @@ export const PERMISSION_LAB_TOOL_WRITE = "lab_tool.write";
 export const PERMISSION_FINANCE_READ = "finance.read";
 export const PERMISSION_FINANCE_WRITE = "finance.write";
 
-/** Operator stock, sale line Stocked-out (physical issue), purchase line Received (goods-in). */
+/**
+ * Physical stock operations: operator stock; **sale** line **Stocked-out** (store issue);
+ * **purchase** line **Received** (goods-in). Pair with `sales.write` / `purchases.write` on
+ * those routes. Stock-out on an already-approved store line does **not** use `approvals.manage`.
+ */
 export const PERMISSION_STOCK_OPS_READ = "stock_ops.read";
 export const PERMISSION_STOCK_OPS_WRITE = "stock_ops.write";
 

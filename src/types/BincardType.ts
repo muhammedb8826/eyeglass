@@ -1,3 +1,4 @@
+import { ItemBaseType } from "./ItemBaseType";
 import { ItemType } from "./ItemType";
 import { UoMType } from "./UomType";
 
@@ -15,6 +16,9 @@ export type BincardReferenceType =
 export interface BincardEntryType {
   id: string;
   itemId: string;
+  /** When set, `balanceAfter` is for this base/ADD variant; when null, parent-item (legacy) balance */
+  itemBaseId?: string | null;
+  itemBase?: Pick<ItemBaseType, "id" | "baseCode" | "addPower">;
   movementType: BincardMovementType;
   quantity: number;
   balanceAfter: number;

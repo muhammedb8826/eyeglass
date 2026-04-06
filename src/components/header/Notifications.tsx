@@ -43,10 +43,12 @@ export const Notifications = () => {
     limit: 1000 
   });
 
-  // Status tracking tabs aligned with order-to-production flow (Pending → InProgress → Ready → Delivered / Cancelled)
+  // Status tracking: … → Ready → QC → SentToShop → ShopReceived → Delivered / Cancelled
   const [pendingItems, setPendingItems] = useState<OrderItemType[]>([]);
   const [inProgressItems, setInProgressItems] = useState<OrderItemType[]>([]);
   const [readyItems, setReadyItems] = useState<OrderItemType[]>([]);
+  const [sentToShopItems, setSentToShopItems] = useState<OrderItemType[]>([]);
+  const [shopReceivedItems, setShopReceivedItems] = useState<OrderItemType[]>([]);
   const [deliveredItems, setDeliveredItems] = useState<OrderItemType[]>([]);
   const [cancelledItems, setCancelledItems] = useState<OrderItemType[]>([]);
   const [approvedItems, setApprovedItems] = useState<OrderItemType[]>([]);
@@ -68,12 +70,22 @@ export const Notifications = () => {
   const inProgressPopoverRef = useRef<HTMLDivElement>(null);
   const readyPopoverRef = useRef<HTMLDivElement>(null);
   const deliveredPopoverRef = useRef<HTMLDivElement>(null);
+  const sentToShopPopoverRef = useRef<HTMLDivElement>(null);
+  const shopReceivedPopoverRef = useRef<HTMLDivElement>(null);
   const cancelledPopoverRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const handleClickOutside = useCallback((event: MouseEvent) => {
-    const refs = [pendingPopoverRef, inProgressPopoverRef, readyPopoverRef, deliveredPopoverRef, cancelledPopoverRef];
+    const refs = [
+      pendingPopoverRef,
+      inProgressPopoverRef,
+      readyPopoverRef,
+      sentToShopPopoverRef,
+      shopReceivedPopoverRef,
+      deliveredPopoverRef,
+      cancelledPopoverRef,
+    ];
   
     refs.forEach((ref, index) => {
       if (showPopover === index && ref.current && !ref.current.contains(event.target as Node)) {
@@ -178,7 +190,14 @@ export const Notifications = () => {
         filteredOrderData = normalizedOrderData;
       } else if (canSeeFrontDeskView) {
         filteredOrderData = normalizedOrderData.filter((item) =>
-          ["Pending", "Ready", "Delivered", "Cancelled"].includes(item.status || ""),
+          [
+            "Pending",
+            "Ready",
+            "SentToShop",
+            "ShopReceived",
+            "Delivered",
+            "Cancelled",
+          ].includes(item.status || ""),
         );
       } else {
         filteredOrderData = [];
@@ -188,6 +207,8 @@ export const Notifications = () => {
       const isPending = (s: string) => s === "Pending";
       const isInProgress = (s: string) => s === "InProgress";
       const isReady = (s: string) => s === "Ready";
+      const isSentToShop = (s: string) => s === "SentToShop";
+      const isShopReceived = (s: string) => s === "ShopReceived";
       const isDelivered = (s: string) => s === "Delivered";
       const isCancelled = (s: string) => s === "Cancelled";
 
@@ -213,12 +234,20 @@ export const Notifications = () => {
       const ready = filteredOrderData.filter(
         (item) => item.status && isReady(item.status) && qcDone(item.qualityControlStatus),
       );
+      const sentToShop = filteredOrderData.filter(
+        (item) => item.status && isSentToShop(item.status),
+      );
+      const shopReceived = filteredOrderData.filter(
+        (item) => item.status && isShopReceived(item.status),
+      );
       const delivered = filteredOrderData.filter((item) => item.status && isDelivered(item.status));
       const cancelled = filteredOrderData.filter((item) => item.status && isCancelled(item.status));
 
       setPendingItems(pending);
       setInProgressItems(inProgress);
       setReadyItems(ready);
+      setSentToShopItems(sentToShop);
+      setShopReceivedItems(shopReceived);
       setDeliveredItems(delivered);
       setCancelledItems(cancelled);
 
@@ -258,6 +287,8 @@ export const Notifications = () => {
         pendingItems,
         inProgressItems,
         readyItems,
+        sentToShopItems,
+        shopReceivedItems,
         deliveredItems,
         cancelledItems,
         approvedItems,
@@ -270,11 +301,36 @@ export const Notifications = () => {
 
       const orderIdResolved = itemToUpdate.orderId || id || "";
 
-      // Enforce QC pass before delivery
-      if (status === "Delivered" && itemToUpdate.qualityControlStatus !== "Passed") {
-        toast.error("Quality control must be Passed before delivery.");
-        handleAction(index);
-        return;
+      if (status === "SentToShop") {
+        if (itemToUpdate.status !== "Ready") {
+          toast.error("Send to shop is only available when the line is Ready.");
+          handleAction(index);
+          return;
+        }
+        if (itemToUpdate.qualityControlStatus !== "Passed") {
+          toast.error("Quality control must be Passed before sending to shop.");
+          handleAction(index);
+          return;
+        }
+      }
+      if (status === "ShopReceived") {
+        if (itemToUpdate.status !== "SentToShop") {
+          toast.error("Line must be Sent to shop before marking Shop received.");
+          handleAction(index);
+          return;
+        }
+      }
+      if (status === "Delivered") {
+        if (itemToUpdate.status !== "ShopReceived") {
+          toast.error("Shop must confirm receipt before marking Delivered.");
+          handleAction(index);
+          return;
+        }
+        if (itemToUpdate.qualityControlStatus !== "Passed") {
+          toast.error("Quality control must be Passed before delivery.");
+          handleAction(index);
+          return;
+        }
       }
 
       type ItemPatch = Partial<OrderItemType> & { id: string; orderId: string };
@@ -345,6 +401,8 @@ export const Notifications = () => {
         PERMISSION_ORDER_ITEMS_WRITE,
       ]),
     ready: () => userHasPermission(user, permissions, PERMISSION_ORDER_ITEMS_WRITE),
+    sentToShop: () => userHasPermission(user, permissions, PERMISSION_ORDER_ITEMS_WRITE),
+    shopReceived: () => userHasPermission(user, permissions, PERMISSION_ORDER_ITEMS_WRITE),
     delivered: () => userHasPermission(user, permissions, PERMISSION_ORDER_ITEMS_WRITE),
     cancelled: () => userHasPermission(user, permissions, PERMISSION_ORDER_ITEMS_WRITE),
     approved: () =>
@@ -452,6 +510,14 @@ export const Notifications = () => {
     { id: 'in-progress', label: `In progress (${inProgressItems.length})` },
     { id: 'qc', label: `Quality control (${qcItems.length})` },
     { id: 'ready', label: `Ready (${readyItems.length})` },
+    {
+      id: 'sent-to-shop',
+      label: `Sent to shop (${sentToShopItems.length})`,
+    },
+    {
+      id: 'shop-received',
+      label: `Shop received (${shopReceivedItems.length})`,
+    },
     { id: 'delivered', label: `Delivered (${deliveredItems.length})` },
     { id: 'cancelled', label: `Cancelled (${cancelledItems.length})` },
   ];
@@ -536,7 +602,7 @@ export const Notifications = () => {
         )}
         {activeTabId === "ready" && (
           <NotificationTable
-            title="Ready (production done)"
+            title="Ready (production done, QC complete — send to retail shop)"
             orders={readyItems}
             statusLabel="Ready"
             handleAction={handleAction}
@@ -545,7 +611,45 @@ export const Notifications = () => {
             showPopover={showPopover}
             popoverRef={readyPopoverRef}
             user={user}
-            status1={{ label: "Deliver", value: "Delivered" }}
+            status1={{ label: "Send to shop", value: "SentToShop" }}
+            status2={{ label: "", value: "" }}
+            expandedNotes={expandedNotes}
+            setExpandedNotes={setExpandedNotes}
+          />
+        )}
+        {activeTabId === "sent-to-shop" && (
+          <NotificationTable
+            title="Sent to shop (awaiting shop receipt)"
+            orders={sentToShopItems}
+            statusLabel="Sent to shop"
+            handleAction={handleAction}
+            handleModalOpen={(id, status, index) =>
+              handleUpdateOrderItem(id, status, index, permissionCheckers.sentToShop)
+            }
+            handleUpdateNote={handleUpdateNote}
+            showPopover={showPopover}
+            popoverRef={sentToShopPopoverRef}
+            user={user}
+            status1={{ label: "Shop received", value: "ShopReceived" }}
+            status2={{ label: "", value: "" }}
+            expandedNotes={expandedNotes}
+            setExpandedNotes={setExpandedNotes}
+          />
+        )}
+        {activeTabId === "shop-received" && (
+          <NotificationTable
+            title="Shop received (ready to close as delivered)"
+            orders={shopReceivedItems}
+            statusLabel="Shop received"
+            handleAction={handleAction}
+            handleModalOpen={(id, status, index) =>
+              handleUpdateOrderItem(id, status, index, permissionCheckers.shopReceived)
+            }
+            handleUpdateNote={handleUpdateNote}
+            showPopover={showPopover}
+            popoverRef={shopReceivedPopoverRef}
+            user={user}
+            status1={{ label: "Mark Delivered", value: "Delivered" }}
             status2={{ label: "", value: "" }}
             expandedNotes={expandedNotes}
             setExpandedNotes={setExpandedNotes}

@@ -287,6 +287,8 @@ export const OrdersReport = () => {
               <option value="Pending">Pending</option>
               <option value="InProgress">In progress</option>
               <option value="Ready">Ready</option>
+              <option value="SentToShop">Sent to shop</option>
+              <option value="ShopReceived">Shop received</option>
               <option value="Delivered">Delivered</option>
               <option value="Cancelled">Cancelled</option>
             </select>

@@ -88,7 +88,13 @@ console.log({
     }) || []
   ).filter(orderItem => {
     // Filter by status only; item-machine links were removed from the backend
-    const statusMatch = ['InProgress', 'Ready', 'Delivered'].includes(orderItem.status);
+    const statusMatch = [
+      'InProgress',
+      'Ready',
+      'SentToShop',
+      'ShopReceived',
+      'Delivered',
+    ].includes(orderItem.status);
     return statusMatch;
   }) || [];
   

@@ -31,6 +31,11 @@ import {
   PERMISSION_FINANCE_WRITE,
   PERMISSION_QUALITY_CONTROL_WRITE,
 } from "@/constants/permissions";
+import {
+  CONTENT_LOCKED_LINE_STATUSES,
+  CONTENT_LOCKED_ORDER_HEADER_STATUSES,
+  PRODUCTION_STARTED_OR_LATER_STATUSES,
+} from "@/constants/orderLineWorkflow";
 import { useGetAllPricingsQuery } from "@/redux/pricing/pricingApiSlice";
 import { useGetAllServicesQuery } from "@/redux/services/servicesApiSlice";
 import { useGetAllNonStockServicesQuery } from "@/redux/services/nonStockServicesApiSlice";
@@ -207,17 +212,17 @@ export const OrderDetailsPage = () => {
   const isOrderItemContentEditingLocked = useCallback(
     (row: OrderItemType) => {
       const os = orderInfo.status || "";
-      if (os === "InProgress" || os === "Ready") return true;
+      if (CONTENT_LOCKED_ORDER_HEADER_STATUSES.has(os)) return true;
       if (row.approvalStatus === "Approved") return true;
       const st = row.status || "";
-      if (st === "InProgress" || st === "Ready") return true;
+      if (CONTENT_LOCKED_LINE_STATUSES.has(st)) return true;
       return false;
     },
     [orderInfo.status],
   );
 
   const isOrderAddingProductLinesBlocked =
-    orderInfo.status === "InProgress" || orderInfo.status === "Ready";
+    CONTENT_LOCKED_ORDER_HEADER_STATUSES.has(orderInfo.status || "");
 
   useEffect(() => {
     if (order) {
@@ -1313,11 +1318,34 @@ export const OrderDetailsPage = () => {
   const handleUpdateItemStatus = async (index: number, newStatus: string) => {
     const item = formData[index];
     if (!item?.id || !order?.id) return;
-    // Enforce QC pass before delivery
-    if (newStatus === "Delivered" && item.qualityControlStatus !== "Passed") {
-      toast.error("Quality control must be Passed before delivery.");
-      return;
+
+    if (newStatus === "SentToShop") {
+      if (item.status !== "Ready") {
+        toast.error("Send to shop is only available when the line is Ready.");
+        return;
+      }
+      if (item.qualityControlStatus !== "Passed") {
+        toast.error("Quality control must be Passed before sending to shop.");
+        return;
+      }
     }
+    if (newStatus === "ShopReceived") {
+      if (item.status !== "SentToShop") {
+        toast.error("Line must be Sent to shop before marking Shop received.");
+        return;
+      }
+    }
+    if (newStatus === "Delivered") {
+      if (item.status !== "ShopReceived") {
+        toast.error("Shop must confirm receipt before marking Delivered.");
+        return;
+      }
+      if (item.qualityControlStatus !== "Passed") {
+        toast.error("Quality control must be Passed before delivery.");
+        return;
+      }
+    }
+
     setDropdownOpen(false);
     setShowPopover(null);
     try {
@@ -2160,6 +2188,16 @@ export const OrderDetailsPage = () => {
                                             Ready
                                           </span>
                                         )}
+                                        {data.status === "SentToShop" && (
+                                          <span className="text-white bg-meta-7 hover:bg-opacity-90 text-xs font-medium px-2.5 py-0.5 rounded">
+                                            Sent to shop
+                                          </span>
+                                        )}
+                                        {data.status === "ShopReceived" && (
+                                          <span className="text-white bg-meta-8 hover:bg-opacity-90 text-xs font-medium px-2.5 py-0.5 rounded">
+                                            Shop received
+                                          </span>
+                                        )}
                                       </div>
                                     )}
                                   </td>
@@ -2215,7 +2253,9 @@ export const OrderDetailsPage = () => {
                                               Details
                                             </Link>
                                           </li>
-                                          {!["InProgress", "Ready", "Delivered", "Cancelled"].includes(formData[index]?.status || "") && (
+                                          {!PRODUCTION_STARTED_OR_LATER_STATUSES.has(
+                                            formData[index]?.status || "",
+                                          ) && (
                                             <li>
                                               <button
                                                 onClick={() => handleUpdateItemStatus(index, "InProgress")}
@@ -2276,10 +2316,41 @@ export const OrderDetailsPage = () => {
                                               </li>
                                             </>
                                           )}
-                                          {formData[index]?.status === "Ready" && (
+                                          {formData[index]?.status === "Ready" &&
+                                            formData[index]?.qualityControlStatus === "Passed" && (
+                                              <li>
+                                                <button
+                                                  onClick={() =>
+                                                    handleUpdateItemStatus(index, "SentToShop")
+                                                  }
+                                                  type="button"
+                                                  disabled={isUpdatingItem}
+                                                  className="flex items-center gap-3 text-sm font-medium px-3 py-2 rounded-md duration-300 ease-in-out hover:bg-gray-100 dark:hover:bg-meta-4 hover:text-primary lg:text-base w-full text-left disabled:opacity-50"
+                                                >
+                                                  Send to shop
+                                                </button>
+                                              </li>
+                                            )}
+                                          {formData[index]?.status === "SentToShop" && (
                                             <li>
                                               <button
-                                                onClick={() => handleUpdateItemStatus(index, "Delivered")}
+                                                onClick={() =>
+                                                  handleUpdateItemStatus(index, "ShopReceived")
+                                                }
+                                                type="button"
+                                                disabled={isUpdatingItem}
+                                                className="flex items-center gap-3 text-sm font-medium px-3 py-2 rounded-md duration-300 ease-in-out hover:bg-gray-100 dark:hover:bg-meta-4 hover:text-primary lg:text-base w-full text-left disabled:opacity-50"
+                                              >
+                                                Shop received
+                                              </button>
+                                            </li>
+                                          )}
+                                          {formData[index]?.status === "ShopReceived" && (
+                                            <li>
+                                              <button
+                                                onClick={() =>
+                                                  handleUpdateItemStatus(index, "Delivered")
+                                                }
                                                 type="button"
                                                 disabled={
                                                   isUpdatingItem ||
